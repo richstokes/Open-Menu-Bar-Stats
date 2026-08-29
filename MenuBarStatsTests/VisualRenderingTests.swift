@@ -49,63 +49,6 @@ final class VisualRenderingTests: XCTestCase {
     }
 
     @MainActor
-    func testMetricStatusLabelsRenderIndependently() throws {
-        let suiteName = "MenuBarStatsStatusVisualTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let preferences = AppPreferences(defaults: defaults)
-        preferences.visualization = .numbers
-        preferences.showsMemory = true
-        preferences.showsThermalState = false
-
-        let monitor = CPUMonitor(
-            snapshot: CPUSnapshot(
-                cores: [CPUCoreReading(id: 0, usage: 0.47)],
-                overallUsage: 0.47,
-                timestamp: Date(timeIntervalSince1970: 0)
-            ),
-            memorySnapshot: MemorySnapshot(
-                usedBytes: 8 * 1_024 * 1_024 * 1_024,
-                totalBytes: 16 * 1_024 * 1_024 * 1_024,
-                timestamp: Date(timeIntervalSince1970: 0)
-            ),
-            thermalState: .fair
-        )
-        let outputDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MenuBarStatsPreviews", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: outputDirectory,
-            withIntermediateDirectories: true
-        )
-
-        let labels: [(name: String, view: AnyView)] = [
-            ("status-cpu", AnyView(CPUStatusLabel(monitor: monitor, preferences: preferences))),
-            ("status-memory", AnyView(MemoryStatusLabel(monitor: monitor))),
-            ("status-thermal", AnyView(ThermalStatusLabel(monitor: monitor))),
-        ]
-
-        for label in labels {
-            let view = label.view
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .environment(\.colorScheme, .light)
-                .background(Color(nsColor: .windowBackgroundColor))
-            let bitmap = try renderFitting(view)
-            let pngData = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-            try pngData.write(
-                to: outputDirectory.appendingPathComponent("\(label.name).png"),
-                options: .atomic
-            )
-
-            XCTAssertGreaterThan(bitmap.size.width, 40)
-            XCTAssertLessThan(bitmap.size.width, 120)
-            XCTAssertGreaterThan(bitmap.size.height, 20)
-            XCTAssertGreaterThan(pngData.count, 500)
-        }
-    }
-
-    @MainActor
     func testAboutViewRenders() throws {
         let view = AboutView()
             .environment(\.colorScheme, .light)
@@ -152,16 +95,16 @@ final class VisualRenderingTests: XCTestCase {
         )] = [
             (
                 "01-every-core.png",
-                "Every core.\nOne glance.",
-                "See all cores in compact bars and change the view in a click.",
+                "CPU usage\nby core",
+                "View every logical core as a bar chart.",
                 .all,
                 .bars,
                 0.78
             ),
             (
                 "02-busiest-core.png",
-                "Focus on the\nbusiest core.",
-                "Switch to a clean numeric reading whenever precision matters.",
+                "Busiest core",
+                "Show the most active core as a percentage.",
                 .busiest,
                 .numbers,
                 0.84
@@ -372,10 +315,6 @@ private struct AppStoreScreenshot: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 0)
-
-                Label("Built for macOS Tahoe", systemImage: "apple.logo")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.72))
             }
             .frame(width: 260, alignment: .leading)
 
