@@ -23,11 +23,16 @@ enum SystemThermalState: String, Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .nominal: "Nominal"
+        case .nominal: "OK"
         case .fair: "Fair"
         case .serious: "Serious"
         case .critical: "Critical"
         }
+    }
+
+    /// Normal operation stays icon-only; exceptional states earn menu-bar text.
+    var menuBarTitle: String? {
+        self == .nominal ? nil : title
     }
 
     static var current: Self {

@@ -86,6 +86,50 @@ final class AppPreferencesTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testNumericStatusSegmentKeepsAConstantWidth() {
+        let segment = StatusMetricSegmentView(
+            systemImage: "cpu",
+            accessibilityDescription: "CPU usage",
+            showsTitle: true
+        )
+        segment.isCompact = true
+        segment.reservedTitle = "100%"
+
+        let widths = ["1%", "27%", "88%", "100%"].map { title in
+            segment.title = title
+            segment.layoutSubtreeIfNeeded()
+            return segment.fittingSize.width
+        }
+
+        XCTAssertEqual(Set(widths.map { ($0 * 100).rounded() / 100 }).count, 1)
+    }
+
+    @MainActor
+    func testStatusItemControllerCanRestartSampling() async throws {
+        let suiteName = "MenuBarStatsControllerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let monitor = CPUMonitor()
+        let preferences = AppPreferences(defaults: defaults)
+        let controller = MetricStatusItemController(
+            monitor: monitor,
+            preferences: preferences
+        )
+
+        controller.start()
+        try await waitUntil { monitor.isRunning }
+        controller.stop()
+        try await waitUntil { !monitor.isRunning }
+
+        controller.start()
+        try await waitUntil { monitor.isRunning }
+        controller.stop()
+        try await waitUntil { !monitor.isRunning }
+    }
+
     private func withIsolatedDefaults(_ body: (UserDefaults) -> Void) {
         let suiteName = "MenuBarStatsTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
@@ -95,5 +139,20 @@ final class AppPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         body(defaults)
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+
+        while !condition(), clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertTrue(condition())
     }
 }

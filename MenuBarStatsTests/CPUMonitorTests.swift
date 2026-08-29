@@ -5,10 +5,17 @@ import XCTest
 
 final class CPUMonitorTests: XCTestCase {
     func testPublicThermalStatesHaveAccurateLabels() {
-        XCTAssertEqual(SystemThermalState(.nominal).title, "Nominal")
+        XCTAssertEqual(SystemThermalState(.nominal).title, "OK")
         XCTAssertEqual(SystemThermalState(.fair).title, "Fair")
         XCTAssertEqual(SystemThermalState(.serious).title, "Serious")
         XCTAssertEqual(SystemThermalState(.critical).title, "Critical")
+    }
+
+    func testOnlyExceptionalThermalStatesAddMenuBarText() {
+        XCTAssertNil(SystemThermalState.nominal.menuBarTitle)
+        XCTAssertEqual(SystemThermalState.fair.menuBarTitle, "Fair")
+        XCTAssertEqual(SystemThermalState.serious.menuBarTitle, "Serious")
+        XCTAssertEqual(SystemThermalState.critical.menuBarTitle, "Critical")
     }
 
     @MainActor
@@ -72,6 +79,20 @@ final class CPUMonitorTests: XCTestCase {
     }
 
     @MainActor
+    func testCancellationDoesNotPublishAnInFlightMemoryFailure() async throws {
+        let memorySource = DelayedFailingMemorySource()
+        let monitor = CPUMonitor(memorySource: memorySource)
+        let task = Task { await monitor.run(samplesMemory: true) }
+
+        try await waitUntil { memorySource.readCount == 1 }
+        task.cancel()
+        try await Task.sleep(for: .milliseconds(150))
+
+        XCTAssertNil(monitor.memoryErrorMessage)
+        try await waitUntil { !monitor.isRunning }
+    }
+
+    @MainActor
     func testScreenActivityMessagesUpdateSamplingState() async throws {
         let monitor = CPUMonitor()
         let workspace = NSWorkspace.shared
@@ -131,5 +152,28 @@ private final class CountingMemorySource: MemoryReading, @unchecked Sendable {
             totalBytes: 8_192,
             timestamp: timestamp
         )
+    }
+}
+
+private final class DelayedFailingMemorySource: MemoryReading, @unchecked Sendable {
+    private enum ExpectedFailure: LocalizedError {
+        case unavailable
+
+        var errorDescription: String? { "Expected memory read failure" }
+    }
+
+    private let lock = NSLock()
+    private var count = 0
+
+    var readCount: Int {
+        lock.withLock { count }
+    }
+
+    func read(at timestamp: Date) throws -> MemorySnapshot {
+        lock.withLock {
+            count += 1
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+        throw ExpectedFailure.unavailable
     }
 }

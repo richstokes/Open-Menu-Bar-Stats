@@ -36,15 +36,21 @@ struct PreferencesView: View {
             Divider()
                 .padding(.vertical, 2)
 
-            Toggle(isOn: $preferences.showsMemory) {
+            HStack {
                 Label("Memory in menu bar", systemImage: "memorychip")
+                Spacer(minLength: 12)
+                Toggle("Memory in menu bar", isOn: $preferences.showsMemory)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
             }
-            .toggleStyle(.switch)
 
-            Toggle(isOn: $preferences.showsThermalState) {
+            HStack {
                 Label("Thermal state in menu bar", systemImage: "thermometer.medium")
+                Spacer(minLength: 12)
+                Toggle("Thermal state in menu bar", isOn: $preferences.showsThermalState)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
             }
-            .toggleStyle(.switch)
             .help("Shows the qualitative thermal condition reported by macOS.")
         }
         .font(.subheadline)

@@ -32,7 +32,7 @@ private struct AllCoreBarChart: View {
             .frame(height: 146)
 
             ScrollView(.horizontal) {
-                HStack(alignment: .bottom, spacing: 7) {
+                LazyHStack(alignment: .bottom, spacing: 7) {
                     ForEach(cores) { core in
                         VStack(spacing: 5) {
                             GeometryReader { proxy in

@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "300000000000000000000001"
-               BuildableName = "Open Menu Stats.app"
+               BuildableName = "Open Menu Bar Stats.app"
                BlueprintName = "MenuBarStats"
                ReferencedContainer = "container:MenuBarStats.xcodeproj">
             </BuildableReference>
@@ -56,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "300000000000000000000001"
-            BuildableName = "Open Menu Stats.app"
+            BuildableName = "Open Menu Bar Stats.app"
             BlueprintName = "MenuBarStats"
             ReferencedContainer = "container:MenuBarStats.xcodeproj">
          </BuildableReference>
@@ -72,13 +72,13 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "300000000000000000000001"
-            BuildableName = "Open Menu Stats.app"
+            BuildableName = "Open Menu Bar Stats.app"
             BlueprintName = "MenuBarStats"
             ReferencedContainer = "container:MenuBarStats.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
-   <AnalyzeAction buildConfiguration = "Debug">
+   <AnalyzeAction buildConfiguration = "Release">
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"

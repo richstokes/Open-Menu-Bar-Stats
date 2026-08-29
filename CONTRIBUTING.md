@@ -1,6 +1,6 @@
-# Contributing to Open Menu Stats
+# Contributing to Open Menu Bar Stats
 
-Thanks for helping improve Open Menu Stats.
+Thanks for helping improve Open Menu Bar Stats.
 
 ## Development workflow
 

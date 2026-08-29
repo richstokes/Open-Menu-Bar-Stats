@@ -62,7 +62,7 @@ struct CPUMenuView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Open Menu Stats")
+                Text("Open Menu Bar Stats")
                     .font(.headline)
                 Text(summary)
                     .font(.caption)
@@ -148,9 +148,10 @@ struct CPUMenuView: View {
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
-    private static let supportURL = URL(
+    private static let coffeeURL = URL(
         string: "https://buymeacoffee.com/richstokes"
     )!
+    private static let privacyURL = URL(string: "https://appsbyrich.com/privacy")!
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
@@ -158,15 +159,14 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 13))
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 72, height: 72)
                 .accessibilityHidden(true)
 
             VStack(spacing: 3) {
-                Text("Open Menu Stats")
+                Text("Open Menu Bar Stats")
                     .font(.title2.bold())
                 Text("Version \(version)")
                     .font(.caption)
@@ -177,11 +177,15 @@ struct AboutView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
-            Link(destination: Self.supportURL) {
+            Link(destination: Self.coffeeURL) {
                 Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
             }
             .buttonStyle(.borderedProminent)
             .accessibilityHint("Opens buymeacoffee.com in your browser")
+
+            Link("Privacy Policy", destination: Self.privacyURL)
+                .font(.caption)
+                .accessibilityHint("Opens the privacy policy in your browser")
 
             Button("Done") {
                 dismiss()

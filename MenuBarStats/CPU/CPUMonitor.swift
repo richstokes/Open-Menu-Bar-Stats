@@ -89,7 +89,10 @@ final class CPUMonitor {
         }
     }
 
-    func run(samplesMemory: Bool = false) async {
+    func run(
+        samplesMemory: Bool = false,
+        resetCPUBaseline: Bool = false
+    ) async {
         guard !Task.isCancelled else { return }
 
         // SwiftUI can replace the MenuBarExtra label before its previous task has
@@ -104,6 +107,11 @@ final class CPUMonitor {
             }
         }
 
+        if resetCPUBaseline {
+            await sampler.reset()
+            guard !Task.isCancelled, generation == runGeneration else { return }
+        }
+
         let clock = ContinuousClock()
         var nextDeadline = clock.now
 
@@ -114,15 +122,21 @@ final class CPUMonitor {
                 let nextSnapshot = try await sampler.sample(at: timestamp)
                 guard !Task.isCancelled, generation == runGeneration else { break }
 
-                if let nextSnapshot {
-                    snapshot = nextSnapshot
+                if errorMessage != nil {
                     errorMessage = nil
                 }
+                if let nextSnapshot {
+                    snapshot = nextSnapshot
+                }
             } catch {
-                guard generation == runGeneration else { break }
-                errorMessage = error.localizedDescription
+                guard !Task.isCancelled, generation == runGeneration else { break }
+                let message = error.localizedDescription
+                if errorMessage != message {
+                    errorMessage = message
+                }
             }
 
+            guard !Task.isCancelled, generation == runGeneration else { break }
             if samplesMemory {
                 await updateMemory(at: timestamp, generation: generation)
             }
@@ -153,10 +167,15 @@ final class CPUMonitor {
             guard !Task.isCancelled, generation == runGeneration else { return }
 
             memorySnapshot = nextSnapshot
-            memoryErrorMessage = nil
+            if memoryErrorMessage != nil {
+                memoryErrorMessage = nil
+            }
         } catch {
-            guard generation == runGeneration else { return }
-            memoryErrorMessage = error.localizedDescription
+            guard !Task.isCancelled, generation == runGeneration else { return }
+            let message = error.localizedDescription
+            if memoryErrorMessage != message {
+                memoryErrorMessage = message
+            }
         }
     }
 

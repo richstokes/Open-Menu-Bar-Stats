@@ -56,7 +56,7 @@
 		100000000000000000000013 /* MenuBarStats.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MenuBarStats.entitlements; sourceTree = "<group>"; };
 		100000000000000000000014 /* CPUUsageCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUUsageCalculatorTests.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* AppPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesTests.swift; sourceTree = "<group>"; };
-		100000000000000000000016 /* Open Menu Stats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Menu Stats.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000016 /* Open Menu Bar Stats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Menu Bar Stats.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000017 /* MenuBarStatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MenuBarStatsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000018 /* VisualRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualRenderingTests.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -97,7 +97,7 @@
 		000000000000000000000002 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				100000000000000000000016 /* Open Menu Stats.app */,
+				100000000000000000000016 /* Open Menu Bar Stats.app */,
 				100000000000000000000017 /* MenuBarStatsTests.xctest */,
 			);
 			name = Products;
@@ -197,8 +197,8 @@
 			name = MenuBarStats;
 			packageProductDependencies = (
 			);
-			productName = "Open Menu Stats";
-			productReference = 100000000000000000000016 /* Open Menu Stats.app */;
+			productName = "Open Menu Bar Stats";
+			productReference = 100000000000000000000016 /* Open Menu Bar Stats.app */;
 			productType = "com.apple.product-type.application";
 		};
 		300000000000000000000002 /* MenuBarStatsTests */ = {
@@ -457,11 +457,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Stats";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Bar Stats";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Stats contributors";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Bar Stats contributors";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -469,7 +469,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
-				PRODUCT_NAME = "Open Menu Stats";
+				PRODUCT_NAME = "Open Menu Bar Stats";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_MEMORY_SAFETY = YES;
@@ -493,11 +493,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Stats";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Bar Stats";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Stats contributors";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Bar Stats contributors";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -505,7 +505,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
-				PRODUCT_NAME = "Open Menu Stats";
+				PRODUCT_NAME = "Open Menu Bar Stats";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_MEMORY_SAFETY = YES;
@@ -535,7 +535,7 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Stats.app/Contents/MacOS/Open Menu Stats";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Bar Stats.app/Contents/MacOS/Open Menu Bar Stats";
 			};
 			name = Debug;
 		};
@@ -559,7 +559,7 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Stats.app/Contents/MacOS/Open Menu Stats";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Bar Stats.app/Contents/MacOS/Open Menu Bar Stats";
 			};
 			name = Release;
 		};

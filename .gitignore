@@ -7,6 +7,11 @@ build/
 DerivedData/
 *.xcarchive
 *.dSYM
+*.pkg
+
+# Local App Store signing and build artifacts
+AppStore/Build/
+AppStore/ExportOptions.plist
 
 # Swift Package Manager (if packages are added later)
 .build/
