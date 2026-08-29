@@ -117,31 +117,28 @@ final class CPUMonitor {
 
         while !Task.isCancelled, generation == runGeneration {
             let timestamp = Date()
+            let cpuResult: SampleResult<CPUSnapshot?>
 
             do {
-                let nextSnapshot = try await sampler.sample(at: timestamp)
-                guard !Task.isCancelled, generation == runGeneration else { break }
-
-                if errorMessage != nil {
-                    errorMessage = nil
-                }
-                if let nextSnapshot {
-                    snapshot = nextSnapshot
-                }
+                cpuResult = .success(try await sampler.sample(at: timestamp))
             } catch {
-                guard !Task.isCancelled, generation == runGeneration else { break }
-                let message = error.localizedDescription
-                if errorMessage != message {
-                    errorMessage = message
-                }
+                cpuResult = .failure(error.localizedDescription)
             }
 
             guard !Task.isCancelled, generation == runGeneration else { break }
+            let memoryResult: SampleResult<MemorySnapshot>?
             if samplesMemory {
-                await updateMemory(at: timestamp, generation: generation)
+                do {
+                    memoryResult = .success(try await memorySampler.sample(at: timestamp))
+                } catch {
+                    memoryResult = .failure(error.localizedDescription)
+                }
+            } else {
+                memoryResult = nil
             }
 
             guard !Task.isCancelled, generation == runGeneration else { break }
+            publish(cpuResult: cpuResult, memoryResult: memoryResult)
 
             nextDeadline = nextDeadline.advanced(by: Self.samplingInterval)
             let now = clock.now
@@ -161,21 +158,38 @@ final class CPUMonitor {
         }
     }
 
-    private func updateMemory(at timestamp: Date, generation: UInt64) async {
-        do {
-            let nextSnapshot = try await memorySampler.sample(at: timestamp)
-            guard !Task.isCancelled, generation == runGeneration else { return }
+    /// Applies all results for a sampling tick without suspension. Observation
+    /// consumers can then coalesce CPU and Memory into one refresh.
+    private func publish(
+        cpuResult: SampleResult<CPUSnapshot?>,
+        memoryResult: SampleResult<MemorySnapshot>?
+    ) {
+        switch cpuResult {
+        case .success(let nextSnapshot):
+            if errorMessage != nil {
+                errorMessage = nil
+            }
+            if let nextSnapshot {
+                snapshot = nextSnapshot
+            }
+        case .failure(let message):
+            if errorMessage != message {
+                errorMessage = message
+            }
+        }
 
+        switch memoryResult {
+        case .success(let nextSnapshot):
             memorySnapshot = nextSnapshot
             if memoryErrorMessage != nil {
                 memoryErrorMessage = nil
             }
-        } catch {
-            guard !Task.isCancelled, generation == runGeneration else { return }
-            let message = error.localizedDescription
+        case .failure(let message):
             if memoryErrorMessage != message {
                 memoryErrorMessage = message
             }
+        case nil:
+            break
         }
     }
 
@@ -194,4 +208,9 @@ final class CPUMonitor {
         guard thermalState != currentThermalState else { return }
         thermalState = currentThermalState
     }
+}
+
+private enum SampleResult<Value> {
+    case success(Value)
+    case failure(String)
 }

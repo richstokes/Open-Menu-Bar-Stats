@@ -106,6 +106,35 @@ final class AppPreferencesTests: XCTestCase {
     }
 
     @MainActor
+    func testBarStatusSegmentKeepsAConstantWidth() {
+        let segment = StatusMetricSegmentView(
+            systemImage: "cpu",
+            accessibilityDescription: "CPU usage",
+            showsTitle: true
+        )
+        segment.usesMonospacedText = true
+
+        for isCompact in [false, true] {
+            segment.isCompact = isCompact
+            let widths = [
+                "▁▁▁▁▁▁▁▁▁▁",
+                "██████████",
+                "▁▂▃▄▅▆▇█▁█",
+            ].map { title in
+                segment.title = title
+                segment.layoutSubtreeIfNeeded()
+                return segment.fittingSize.width
+            }
+
+            XCTAssertEqual(
+                Set(widths.map { ($0 * 100).rounded() / 100 }).count,
+                1,
+                "Bar glyphs should not resize the status segment"
+            )
+        }
+    }
+
+    @MainActor
     func testStatusSegmentCanColorItsSymbolWithoutColoringItsTitle() throws {
         let segment = StatusMetricSegmentView(
             systemImage: "thermometer.medium",
@@ -113,12 +142,12 @@ final class AppPreferencesTests: XCTestCase {
             showsTitle: true
         )
         segment.symbolColor = .systemYellow
-        segment.titleColor = .controlTextColor
+        segment.titleColor = .labelColor
 
         let imageView = try XCTUnwrap(segment.arrangedSubviews.first as? NSImageView)
         let titleLabel = try XCTUnwrap(segment.arrangedSubviews.last as? NSTextField)
         XCTAssertEqual(imageView.contentTintColor, .systemYellow)
-        XCTAssertEqual(titleLabel.textColor, .controlTextColor)
+        XCTAssertEqual(titleLabel.textColor, .labelColor)
     }
 
     @MainActor

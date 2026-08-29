@@ -53,6 +53,7 @@ final class MetricStatusItemController: NSObject {
     private var samplingConfiguration: SamplingConfiguration?
     private var samplingTask: Task<Void, Never>?
     private var observationGeneration: UInt64 = 0
+    private var lastAccessibilityValue: String?
 
     private lazy var popover: NSPopover = {
         let popover = NSPopover()
@@ -86,6 +87,7 @@ final class MetricStatusItemController: NSObject {
         samplingTask?.cancel()
         samplingTask = nil
         samplingConfiguration = nil
+        lastAccessibilityValue = nil
         popover.performClose(nil)
 
         if let statusItem {
@@ -154,10 +156,12 @@ final class MetricStatusItemController: NSObject {
         let didChangeLayout = contentView.update(
             cpuTitle: cpuPresentation.title,
             cpuReservedTitle: cpuReservedTitle(),
+            cpuHasError: cpuPresentation.hasError,
             memoryTitle: memoryPresentation?.title,
             memoryReservedTitle: memoryReservedTitle(
                 hasMemoryPresentation: memoryPresentation != nil
             ),
+            memoryHasError: memoryPresentation?.hasError ?? false,
             thermalState: thermalState,
             isCompact: isCompact
         )
@@ -171,21 +175,21 @@ final class MetricStatusItemController: NSObject {
             thermalState.map { "Thermal state, \($0.title.lowercased())" }
         ].compactMap { $0 }
         let description = accessibilityParts.joined(separator: ". ")
-        if button.toolTip != description {
-            button.toolTip = description
-            button.setAccessibilityLabel(description)
+        if lastAccessibilityValue != description {
+            lastAccessibilityValue = description
+            button.setAccessibilityValue(description)
         }
     }
 
     private func cpuReservedTitle() -> String? {
         guard preferences.visualization == .numbers else { return nil }
 
-        return 1.0.formatted(.percent.precision(.fractionLength(0)))
+        return formattedPercentage(1)
     }
 
     private func memoryReservedTitle(hasMemoryPresentation: Bool) -> String? {
         guard hasMemoryPresentation, preferences.visualization == .numbers else { return nil }
-        return "100%"
+        return formattedPercentage(1)
     }
 
     private func makeCPUPresentation(isCompact: Bool) -> MetricPresentation {
@@ -194,7 +198,8 @@ final class MetricStatusItemController: NSObject {
             if let errorMessage {
                 return MetricPresentation(
                     title: "!",
-                    accessibilityLabel: "CPU data unavailable: \(errorMessage)"
+                    accessibilityLabel: "CPU data unavailable: \(errorMessage)",
+                    hasError: true
                 )
             }
             return MetricPresentation(title: "—", accessibilityLabel: "CPU usage, measuring")
@@ -221,7 +226,7 @@ final class MetricStatusItemController: NSObject {
         let title: String
         switch preferences.visualization {
         case .numbers:
-            title = selectedUsage.formatted(.percent.precision(.fractionLength(0)))
+            title = formattedPercentage(selectedUsage)
         case .bars:
             title = usageBarText(values: chartValues, maximumBars: isCompact ? 4 : 10)
         }
@@ -231,7 +236,11 @@ final class MetricStatusItemController: NSObject {
         } else {
             accessibilityLabel
         }
-        return MetricPresentation(title: title, accessibilityLabel: currentAccessibilityLabel)
+        return MetricPresentation(
+            title: title,
+            accessibilityLabel: currentAccessibilityLabel,
+            hasError: errorMessage != nil
+        )
     }
 
     private func makeMemoryPresentation() -> MetricPresentation? {
@@ -242,7 +251,8 @@ final class MetricStatusItemController: NSObject {
             if let errorMessage {
                 return MetricPresentation(
                     title: "!",
-                    accessibilityLabel: "Memory data unavailable: \(errorMessage)"
+                    accessibilityLabel: "Memory data unavailable: \(errorMessage)",
+                    hasError: true
                 )
             }
             return MetricPresentation(title: "—", accessibilityLabel: "Memory load, measuring")
@@ -254,13 +264,18 @@ final class MetricStatusItemController: NSObject {
             "Memory load, \(snapshot.percentage) percent"
         }
         let title = switch preferences.visualization {
-        case .numbers: "\(snapshot.percentage)%"
+        case .numbers: formattedPercentage(snapshot.clampedUsage)
         case .bars: usageBarText(values: [snapshot.clampedUsage], maximumBars: 1)
         }
         return MetricPresentation(
             title: title,
-            accessibilityLabel: accessibilityLabel
+            accessibilityLabel: accessibilityLabel,
+            hasError: errorMessage != nil
         )
+    }
+
+    private func formattedPercentage(_ usage: Double) -> String {
+        usage.formatted(.percent.precision(.fractionLength(0)))
     }
 
     private func makeStatusItem() -> (NSStatusItem, StatusItemContentView) {
@@ -272,6 +287,8 @@ final class MetricStatusItemController: NSObject {
         if let button = item.button {
             button.target = self
             button.action = #selector(statusItemClicked(_:))
+            button.toolTip = "Open Menu Bar Stats"
+            button.setAccessibilityLabel("Open Menu Bar Stats")
             button.addSubview(contentView)
 
             NSLayoutConstraint.activate([
@@ -284,8 +301,10 @@ final class MetricStatusItemController: NSObject {
         contentView.update(
             cpuTitle: "—",
             cpuReservedTitle: nil,
+            cpuHasError: false,
             memoryTitle: nil,
             memoryReservedTitle: nil,
+            memoryHasError: false,
             thermalState: nil,
             isCompact: false
         )
@@ -327,6 +346,7 @@ final class MetricStatusItemController: NSObject {
 private struct MetricPresentation {
     let title: String
     let accessibilityLabel: String
+    var hasError = false
 }
 
 /// Renders each metric as a distinct symbol inside one status-bar button. The
@@ -336,8 +356,10 @@ private final class StatusItemContentView: NSView {
     private struct RenderState: Equatable {
         let cpuTitle: String
         let cpuReservedTitle: String?
+        let cpuHasError: Bool
         let memoryTitle: String?
         let memoryReservedTitle: String?
+        let memoryHasError: Bool
         let thermalState: SystemThermalState?
         let isCompact: Bool
     }
@@ -391,16 +413,20 @@ private final class StatusItemContentView: NSView {
     func update(
         cpuTitle: String,
         cpuReservedTitle: String?,
+        cpuHasError: Bool,
         memoryTitle: String?,
         memoryReservedTitle: String?,
+        memoryHasError: Bool,
         thermalState: SystemThermalState?,
         isCompact: Bool
     ) -> Bool {
         let nextState = RenderState(
             cpuTitle: cpuTitle,
             cpuReservedTitle: cpuReservedTitle,
+            cpuHasError: cpuHasError,
             memoryTitle: memoryTitle,
             memoryReservedTitle: memoryReservedTitle,
+            memoryHasError: memoryHasError,
             thermalState: thermalState,
             isCompact: isCompact
         )
@@ -409,7 +435,13 @@ private final class StatusItemContentView: NSView {
         renderState = nextState
 
         cpuSegment.title = cpuTitle
+        cpuSegment.systemImage = cpuHasError ? "exclamationmark.triangle.fill" : "cpu"
+        cpuSegment.symbolColor = cpuHasError ? .systemOrange : .labelColor
         memorySegment.title = memoryTitle ?? "—"
+        memorySegment.systemImage = memoryHasError
+            ? "exclamationmark.triangle.fill"
+            : "memorychip"
+        memorySegment.symbolColor = memoryHasError ? .systemOrange : .labelColor
         memorySegment.isHidden = memoryTitle == nil
         thermalSegment.isHidden = thermalState == nil
 
@@ -417,12 +449,15 @@ private final class StatusItemContentView: NSView {
             thermalSegment.systemImage = thermalState.systemImage
             thermalSegment.title = thermalState.menuBarTitle ?? ""
             thermalSegment.symbolColor = thermalState.menuBarColor
-            thermalSegment.titleColor = .controlTextColor
+            thermalSegment.titleColor = .labelColor
         }
 
         cpuSegment.isCompact = isCompact
         memorySegment.isCompact = isCompact
         thermalSegment.isCompact = isCompact
+        cpuSegment.usesMonospacedText = cpuReservedTitle == nil
+        memorySegment.usesMonospacedText = memoryTitle != nil && memoryReservedTitle == nil
+        thermalSegment.usesMonospacedText = false
         cpuSegment.reservedTitle = cpuReservedTitle
         memorySegment.reservedTitle = memoryReservedTitle
         stackView.spacing = isCompact ? 4 : 5
@@ -460,20 +495,35 @@ final class StatusMetricSegmentView: NSStackView {
     var title: String {
         get { titleLabel.stringValue }
         set {
+            let shouldHide = !supportsTitle || newValue.isEmpty
+            guard titleLabel.stringValue != newValue || titleLabel.isHidden != shouldHide else {
+                return
+            }
             titleLabel.stringValue = newValue
-            titleLabel.isHidden = !supportsTitle || newValue.isEmpty
+            titleLabel.isHidden = shouldHide
         }
     }
 
-    var symbolColor: NSColor = .controlTextColor {
+    var symbolColor: NSColor = .labelColor {
         didSet {
+            guard symbolColor != oldValue else { return }
             imageView.contentTintColor = symbolColor
         }
     }
 
-    var titleColor: NSColor = .controlTextColor {
+    var titleColor: NSColor = .labelColor {
         didSet {
+            guard titleColor != oldValue else { return }
             titleLabel.textColor = titleColor
+        }
+    }
+
+    /// Uses equal-width glyph advances for bar visualizations so their changing
+    /// block characters cannot resize the status item on every sample.
+    var usesMonospacedText = false {
+        didSet {
+            guard usesMonospacedText != oldValue else { return }
+            updateTypographyAndReservedWidth()
         }
     }
 
@@ -512,10 +562,10 @@ final class StatusMetricSegmentView: NSStackView {
 
         updateImage()
         imageView.imageScaling = .scaleProportionallyDown
-        imageView.contentTintColor = .controlTextColor
+        imageView.contentTintColor = .labelColor
         imageView.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = .menuBarFont(ofSize: 0)
-        titleLabel.textColor = .controlTextColor
+        titleLabel.textColor = .labelColor
         titleLabel.isHidden = !showsTitle
         titleLabel.alignment = .right
         titleLabel.lineBreakMode = .byClipping
@@ -542,16 +592,21 @@ final class StatusMetricSegmentView: NSStackView {
     }
 
     private func updateTypographyAndReservedWidth() {
+        let pointSize = isCompact ? 12 : NSFont.menuBarFont(ofSize: 0).pointSize
         let font: NSFont
         if reservedTitle != nil {
-            let pointSize = isCompact ? 12 : NSFont.menuBarFont(ofSize: 0).pointSize
             font = .monospacedDigitSystemFont(
+                ofSize: pointSize,
+                weight: isCompact ? .medium : .regular
+            )
+        } else if usesMonospacedText {
+            font = .monospacedSystemFont(
                 ofSize: pointSize,
                 weight: isCompact ? .medium : .regular
             )
         } else {
             font = isCompact
-                ? .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+                ? .systemFont(ofSize: pointSize, weight: .medium)
                 : .menuBarFont(ofSize: 0)
         }
         titleLabel.font = font
@@ -581,15 +636,17 @@ private extension SystemThermalState {
         case .nominal: "thermometer.low"
         case .fair: "thermometer.medium"
         case .serious, .critical: "thermometer.high"
+        case .unknown: "thermometer.medium"
         }
     }
 
     var menuBarColor: NSColor {
         switch self {
-        case .nominal: .controlTextColor
+        case .nominal: .labelColor
         case .fair: .systemYellow
         case .serious: .systemOrange
         case .critical: .systemRed
+        case .unknown: .secondaryLabelColor
         }
     }
 }

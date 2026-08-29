@@ -152,6 +152,7 @@ struct AboutView: View {
         string: "https://buymeacoffee.com/richstokes"
     )!
     private static let privacyURL = URL(string: "https://appsbyrich.com/privacy")!
+    private static let supportURL = URL(string: "https://appsbyrich.com/support")!
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
@@ -183,9 +184,14 @@ struct AboutView: View {
             .buttonStyle(.borderedProminent)
             .accessibilityHint("Opens buymeacoffee.com in your browser")
 
-            Link("Privacy Policy", destination: Self.privacyURL)
-                .font(.caption)
-                .accessibilityHint("Opens the privacy policy in your browser")
+            HStack(spacing: 16) {
+                Link("Support", destination: Self.supportURL)
+                    .accessibilityHint("Opens the support page in your browser")
+
+                Link("Privacy Policy", destination: Self.privacyURL)
+                    .accessibilityHint("Opens the privacy policy in your browser")
+            }
+            .font(.caption)
 
             Button("Done") {
                 dismiss()

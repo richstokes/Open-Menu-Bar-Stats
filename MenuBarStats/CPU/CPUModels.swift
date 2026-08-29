@@ -5,6 +5,7 @@ enum SystemThermalState: String, Equatable, Sendable {
     case fair
     case serious
     case critical
+    case unknown
 
     init(_ state: ProcessInfo.ThermalState) {
         switch state {
@@ -17,7 +18,7 @@ enum SystemThermalState: String, Equatable, Sendable {
         case .critical:
             self = .critical
         @unknown default:
-            self = .nominal
+            self = .unknown
         }
     }
 
@@ -27,6 +28,7 @@ enum SystemThermalState: String, Equatable, Sendable {
         case .fair: "Fair"
         case .serious: "Serious"
         case .critical: "Critical"
+        case .unknown: "Unknown"
         }
     }
 

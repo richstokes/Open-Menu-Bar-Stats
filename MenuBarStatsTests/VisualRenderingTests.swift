@@ -139,6 +139,7 @@ final class VisualRenderingTests: XCTestCase {
             let screenshot = AppStoreScreenshot(
                 title: configuration.title,
                 subtitle: configuration.subtitle,
+                visualization: configuration.visualization,
                 contentScale: configuration.scale,
                 content: AnyView(appView)
             )
@@ -287,6 +288,7 @@ final class VisualRenderingTests: XCTestCase {
 private struct AppStoreScreenshot: View {
     let title: String
     let subtitle: String
+    let visualization: CPUVisualization
     let contentScale: CGFloat
     let content: AnyView
 
@@ -315,6 +317,15 @@ private struct AppStoreScreenshot: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("MENU BAR")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .tracking(1)
+                        .foregroundStyle(Color.white.opacity(0.62))
+
+                    MenuBarStatusPreview(visualization: visualization)
+                }
             }
             .frame(width: 260, alignment: .leading)
 
@@ -350,5 +361,35 @@ private struct AppStoreScreenshot: View {
 
     private var paletteDeepBlue: Color {
         Color(red: 40 / 255, green: 94 / 255, blue: 127 / 255)
+    }
+}
+
+private struct MenuBarStatusPreview: View {
+    let visualization: CPUVisualization
+
+    var body: some View {
+        HStack(spacing: 7) {
+            metric(systemImage: "cpu", value: visualization == .numbers ? "93%" : "▂▄▆█")
+            metric(systemImage: "memorychip", value: visualization == .numbers ? "50%" : "▄")
+            Image(systemName: "thermometer.low")
+                .accessibilityLabel("Thermal state")
+        }
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(.black)
+        .padding(.horizontal, 11)
+        .frame(height: 32)
+        .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 9))
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Menu bar status preview")
+    }
+
+    private func metric(systemImage: String, value: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: systemImage)
+            Text(value)
+                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+        }
     }
 }

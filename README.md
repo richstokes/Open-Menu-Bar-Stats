@@ -32,7 +32,9 @@ All system information is read locally. Open Menu Bar Stats makes no network req
 
 ## Support
 
-Enjoying Open Menu Bar Stats? [Buy me a coffee](https://buymeacoffee.com/richstokes).
+Need help? Visit the [support page](https://appsbyrich.com/support).
+
+Enjoying the app? [Buy me a coffee](https://buymeacoffee.com/richstokes).
 
 ## Contributing
 

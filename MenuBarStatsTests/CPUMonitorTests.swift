@@ -9,6 +9,7 @@ final class CPUMonitorTests: XCTestCase {
         XCTAssertEqual(SystemThermalState(.fair).title, "Fair")
         XCTAssertEqual(SystemThermalState(.serious).title, "Serious")
         XCTAssertEqual(SystemThermalState(.critical).title, "Critical")
+        XCTAssertEqual(SystemThermalState.unknown.title, "Unknown")
     }
 
     func testOnlyExceptionalThermalStatesAddMenuBarText() {
@@ -16,6 +17,7 @@ final class CPUMonitorTests: XCTestCase {
         XCTAssertEqual(SystemThermalState.fair.menuBarTitle, "Fair")
         XCTAssertEqual(SystemThermalState.serious.menuBarTitle, "Serious")
         XCTAssertEqual(SystemThermalState.critical.menuBarTitle, "Critical")
+        XCTAssertEqual(SystemThermalState.unknown.menuBarTitle, "Unknown")
     }
 
     @MainActor
