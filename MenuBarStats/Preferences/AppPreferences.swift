@@ -34,6 +34,7 @@ final class AppPreferences {
     enum Keys {
         static let coreScope = "cpu.scope"
         static let visualization = "cpu.visualization"
+        static let showsMemory = "memory.visible"
     }
 
     @ObservationIgnored
@@ -47,11 +48,16 @@ final class AppPreferences {
         didSet { defaults.set(visualization.rawValue, forKey: Keys.visualization) }
     }
 
+    var showsMemory: Bool {
+        didSet { defaults.set(showsMemory, forKey: Keys.showsMemory) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         coreScope = CoreScope(rawValue: defaults.string(forKey: Keys.coreScope) ?? "") ?? .all
         visualization = CPUVisualization(
             rawValue: defaults.string(forKey: Keys.visualization) ?? ""
         ) ?? .bars
+        showsMemory = defaults.bool(forKey: Keys.showsMemory)
     }
 }

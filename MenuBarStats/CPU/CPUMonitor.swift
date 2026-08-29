@@ -6,14 +6,26 @@ import Observation
 final class CPUMonitor {
     private(set) var snapshot: CPUSnapshot?
     private(set) var errorMessage: String?
+    private(set) var memorySnapshot: MemorySnapshot?
+    private(set) var memoryErrorMessage: String?
     private(set) var isRunning = false
 
     @ObservationIgnored
     private let sampler: CPUSampler
 
-    init(snapshot: CPUSnapshot? = nil, sampler: CPUSampler = CPUSampler()) {
+    @ObservationIgnored
+    private let memorySource: any MemoryReading
+
+    init(
+        snapshot: CPUSnapshot? = nil,
+        memorySnapshot: MemorySnapshot? = nil,
+        sampler: CPUSampler = CPUSampler(),
+        memorySource: any MemoryReading = MachMemorySource()
+    ) {
         self.snapshot = snapshot
+        self.memorySnapshot = memorySnapshot
         self.sampler = sampler
+        self.memorySource = memorySource
     }
 
     func run() async {
@@ -33,8 +45,11 @@ final class CPUMonitor {
         defer { isRunning = false }
 
         while !Task.isCancelled {
+            let timestamp = Date()
+            updateMemory(at: timestamp)
+
             do {
-                if let nextSnapshot = try await sampler.sample() {
+                if let nextSnapshot = try await sampler.sample(at: timestamp) {
                     snapshot = nextSnapshot
                     errorMessage = nil
                 }
@@ -47,6 +62,15 @@ final class CPUMonitor {
             } catch {
                 break
             }
+        }
+    }
+
+    private func updateMemory(at timestamp: Date) {
+        do {
+            memorySnapshot = try memorySource.read(at: timestamp)
+            memoryErrorMessage = nil
+        } catch {
+            memoryErrorMessage = error.localizedDescription
         }
     }
 }

@@ -1,6 +1,6 @@
-# MenuBar Stats
+# Open Menu Stats
 
-MenuBar Stats is a small, native, open-source macOS CPU monitor. It lives entirely in the menu bar, samples each logical CPU once per second, and has no third-party dependencies.
+Open Menu Stats is a small, native, open-source macOS CPU monitor. It lives entirely in the menu bar, samples each logical CPU once per second, and has no third-party dependencies.
 
 ## Features
 
@@ -33,7 +33,7 @@ make build
 make test
 ```
 
-The default bundle identifier is `com.menubarstats.MenuBarStats`. Change it under the app target's Signing & Capabilities settings before distributing your own signed build.
+The app is configured with the bundle identifier `richstokes.menubarstats` for its App Store Connect record.
 
 ## How CPU usage is calculated
 
@@ -61,7 +61,7 @@ MenuBarStatsTests/
 
 ## Privacy
 
-MenuBar Stats reads CPU counters available on the local Mac. It makes no network requests and stores only the two display preferences in `UserDefaults`. Its privacy manifest declares no tracking or collected data and documents the app-only preferences access.
+Open Menu Stats reads CPU counters available on the local Mac. It makes no network requests and stores only the two display preferences in `UserDefaults`. Its privacy manifest declares no tracking or collected data and documents the app-only preferences access.
 
 ## Contributing
 
@@ -69,4 +69,4 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## License
 
-MenuBar Stats is available under the [MIT License](LICENSE).
+Open Menu Stats is available under the [MIT License](LICENSE).

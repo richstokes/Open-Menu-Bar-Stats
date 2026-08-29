@@ -57,7 +57,7 @@ struct CPUMenuView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("MenuBar Stats")
+                Text("Open Menu Stats")
                     .font(.headline)
                 Text(summary)
                     .font(.caption)

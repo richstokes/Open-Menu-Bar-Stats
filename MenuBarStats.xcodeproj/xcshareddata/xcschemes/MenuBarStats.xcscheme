@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "300000000000000000000001"
-               BuildableName = "MenuBar Stats.app"
+               BuildableName = "Open Menu Stats.app"
                BlueprintName = "MenuBarStats"
                ReferencedContainer = "container:MenuBarStats.xcodeproj">
             </BuildableReference>
@@ -56,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "300000000000000000000001"
-            BuildableName = "MenuBar Stats.app"
+            BuildableName = "Open Menu Stats.app"
             BlueprintName = "MenuBarStats"
             ReferencedContainer = "container:MenuBarStats.xcodeproj">
          </BuildableReference>
@@ -72,7 +72,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "300000000000000000000001"
-            BuildableName = "MenuBar Stats.app"
+            BuildableName = "Open Menu Stats.app"
             BlueprintName = "MenuBarStats"
             ReferencedContainer = "container:MenuBarStats.xcodeproj">
          </BuildableReference>
