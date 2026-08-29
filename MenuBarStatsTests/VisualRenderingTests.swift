@@ -133,7 +133,10 @@ final class VisualRenderingTests: XCTestCase {
             timestamp: Date(timeIntervalSince1970: 0)
         )
         let outputDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("OpenMenuStatsAppStoreScreenshots", isDirectory: true)
+            .appendingPathComponent(
+                "OpenMenuStatsAppStoreScreenshots-\(UUID().uuidString)",
+                isDirectory: true
+            )
         try FileManager.default.createDirectory(
             at: outputDirectory,
             withIntermediateDirectories: true
@@ -182,6 +185,12 @@ final class VisualRenderingTests: XCTestCase {
             )
             let appView = CPUMenuView(monitor: monitor, preferences: preferences)
                 .environment(\.colorScheme, .light)
+                .environment(\.locale, Locale(identifier: "en-US"))
+                .tint(.blue)
+                .transaction { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
                 .background(Color(nsColor: .windowBackgroundColor))
 
             let screenshot = AppStoreScreenshot(
@@ -196,19 +205,13 @@ final class VisualRenderingTests: XCTestCase {
             )
         }
 
-        let aboutScreenshot = AppStoreScreenshot(
-            title: "Open source,\nprivacy first.",
-            subtitle: "No accounts. No analytics. No network access.",
-            contentScale: 1,
-            content: AnyView(
-                AboutView()
-                    .environment(\.colorScheme, .light)
-                    .background(Color(nsColor: .windowBackgroundColor))
-            )
+        let generatedFiles = try FileManager.default.contentsOfDirectory(
+            at: outputDirectory,
+            includingPropertiesForKeys: nil
         )
-        try writeAppStoreScreenshot(
-            aboutScreenshot,
-            to: outputDirectory.appendingPathComponent("03-open-source.png")
+        XCTAssertEqual(
+            Set(generatedFiles.map(\.lastPathComponent)),
+            Set(configurations.map { $0.filename })
         )
     }
 

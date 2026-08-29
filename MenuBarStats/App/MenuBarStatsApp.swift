@@ -416,7 +416,8 @@ private final class StatusItemContentView: NSView {
         if let thermalState {
             thermalSegment.systemImage = thermalState.systemImage
             thermalSegment.title = thermalState.menuBarTitle ?? ""
-            thermalSegment.foregroundColor = thermalState.menuBarColor
+            thermalSegment.symbolColor = thermalState.menuBarColor
+            thermalSegment.titleColor = .controlTextColor
         }
 
         cpuSegment.isCompact = isCompact
@@ -464,10 +465,15 @@ final class StatusMetricSegmentView: NSStackView {
         }
     }
 
-    var foregroundColor: NSColor = .controlTextColor {
+    var symbolColor: NSColor = .controlTextColor {
         didSet {
-            imageView.contentTintColor = foregroundColor
-            titleLabel.textColor = foregroundColor
+            imageView.contentTintColor = symbolColor
+        }
+    }
+
+    var titleColor: NSColor = .controlTextColor {
+        didSet {
+            titleLabel.textColor = titleColor
         }
     }
 

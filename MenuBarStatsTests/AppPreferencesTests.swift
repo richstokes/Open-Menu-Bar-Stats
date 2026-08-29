@@ -106,6 +106,22 @@ final class AppPreferencesTests: XCTestCase {
     }
 
     @MainActor
+    func testStatusSegmentCanColorItsSymbolWithoutColoringItsTitle() throws {
+        let segment = StatusMetricSegmentView(
+            systemImage: "thermometer.medium",
+            accessibilityDescription: "Thermal state",
+            showsTitle: true
+        )
+        segment.symbolColor = .systemYellow
+        segment.titleColor = .controlTextColor
+
+        let imageView = try XCTUnwrap(segment.arrangedSubviews.first as? NSImageView)
+        let titleLabel = try XCTUnwrap(segment.arrangedSubviews.last as? NSTextField)
+        XCTAssertEqual(imageView.contentTintColor, .systemYellow)
+        XCTAssertEqual(titleLabel.textColor, .controlTextColor)
+    }
+
+    @MainActor
     func testStatusItemControllerCanRestartSampling() async throws {
         let suiteName = "MenuBarStatsControllerTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
