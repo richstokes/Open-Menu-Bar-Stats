@@ -13,8 +13,11 @@ Thanks for helping improve Open Menu Stats.
 
 ## Design principles
 
+- Target macOS 26 Tahoe and newer using documented public Apple APIs.
 - Stay native to macOS and feel at home in the menu bar.
 - Keep background CPU and energy use low.
+- Give repeating work scheduling tolerance and use the lowest appropriate task priority.
+- Do not sample optional metrics while their displays are disabled.
 - Preserve stable core ordering so visualizations do not jump around.
 - Keep status-item width bounded on machines with many logical processors.
 - Make every visualization understandable with VoiceOver and without relying only on color.

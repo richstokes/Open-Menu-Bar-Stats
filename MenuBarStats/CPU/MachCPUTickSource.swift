@@ -22,14 +22,14 @@ struct MachCPUTickSource {
     func read() throws -> [CPUTicks] {
         let host = mach_host_self()
         defer {
-            mach_port_deallocate(mach_task_self_, host)
+            unsafe mach_port_deallocate(mach_task_self_, host)
         }
 
         var processorCount: natural_t = 0
         var processorInfo: processor_info_array_t?
         var processorInfoCount: mach_msg_type_number_t = 0
 
-        let result = host_processor_info(
+        let result = unsafe host_processor_info(
             host,
             PROCESSOR_CPU_LOAD_INFO,
             &processorCount,
@@ -41,13 +41,13 @@ struct MachCPUTickSource {
             throw MachCPUTickSourceError.hostProcessorInfo(result)
         }
 
-        guard let processorInfo else {
+        guard let processorInfo = unsafe processorInfo else {
             throw MachCPUTickSourceError.missingProcessorData
         }
 
         defer {
             let byteCount = vm_size_t(processorInfoCount) * vm_size_t(MemoryLayout<integer_t>.stride)
-            vm_deallocate(
+            unsafe vm_deallocate(
                 mach_task_self_,
                 vm_address_t(UInt(bitPattern: processorInfo)),
                 byteCount
@@ -63,15 +63,23 @@ struct MachCPUTickSource {
             )
         }
 
-        let buffer = UnsafeBufferPointer(start: processorInfo, count: Int(processorInfoCount))
+        let buffer = unsafe UnsafeBufferPointer(
+            start: processorInfo,
+            count: Int(processorInfoCount)
+        )
 
         return (0..<Int(processorCount)).map { processorIndex in
             let offset = processorIndex * statesPerProcessor
+            let user = unsafe buffer[offset + Int(CPU_STATE_USER)]
+            let system = unsafe buffer[offset + Int(CPU_STATE_SYSTEM)]
+            let idle = unsafe buffer[offset + Int(CPU_STATE_IDLE)]
+            let nice = unsafe buffer[offset + Int(CPU_STATE_NICE)]
+
             return CPUTicks(
-                user: UInt32(bitPattern: buffer[offset + Int(CPU_STATE_USER)]),
-                system: UInt32(bitPattern: buffer[offset + Int(CPU_STATE_SYSTEM)]),
-                idle: UInt32(bitPattern: buffer[offset + Int(CPU_STATE_IDLE)]),
-                nice: UInt32(bitPattern: buffer[offset + Int(CPU_STATE_NICE)])
+                user: UInt32(bitPattern: user),
+                system: UInt32(bitPattern: system),
+                idle: UInt32(bitPattern: idle),
+                nice: UInt32(bitPattern: nice)
             )
         }
     }

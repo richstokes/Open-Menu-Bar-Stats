@@ -1,7 +1,16 @@
+import AppKit
+import Foundation
 import XCTest
 @testable import MenuBarStats
 
 final class CPUMonitorTests: XCTestCase {
+    func testPublicThermalStatesHaveAccurateLabels() {
+        XCTAssertEqual(SystemThermalState(.nominal).title, "Nominal")
+        XCTAssertEqual(SystemThermalState(.fair).title, "Fair")
+        XCTAssertEqual(SystemThermalState(.serious).title, "Serious")
+        XCTAssertEqual(SystemThermalState(.critical).title, "Critical")
+    }
+
     @MainActor
     func testReplacementTaskTakesOverAfterCancellation() async throws {
         let monitor = CPUMonitor()
@@ -19,6 +28,76 @@ final class CPUMonitorTests: XCTestCase {
     }
 
     @MainActor
+    func testDisabledMemoryDoesNotReadMemoryCounters() async throws {
+        let memorySource = CountingMemorySource()
+        let monitor = CPUMonitor(memorySource: memorySource)
+        let task = Task { await monitor.run(samplesMemory: false) }
+
+        try await waitUntil { monitor.isRunning }
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(memorySource.readCount, 0)
+
+        task.cancel()
+        try await waitUntil { !monitor.isRunning }
+    }
+
+    @MainActor
+    func testEnabledMemoryReadsImmediately() async throws {
+        let memorySource = CountingMemorySource()
+        let monitor = CPUMonitor(memorySource: memorySource)
+        let task = Task { await monitor.run(samplesMemory: true) }
+
+        try await waitUntil { monitor.memorySnapshot != nil }
+        XCTAssertEqual(memorySource.readCount, 1)
+
+        task.cancel()
+        try await waitUntil { !monitor.isRunning }
+    }
+
+    @MainActor
+    func testNewRunSupersedesExistingRunWithoutHandoffPolling() async throws {
+        let memorySource = CountingMemorySource()
+        let monitor = CPUMonitor(memorySource: memorySource)
+        let firstTask = Task { await monitor.run(samplesMemory: true) }
+        try await waitUntil { memorySource.readCount == 1 }
+
+        let replacementTask = Task { await monitor.run(samplesMemory: true) }
+        try await waitUntil { memorySource.readCount == 2 }
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(memorySource.readCount, 2)
+
+        firstTask.cancel()
+        replacementTask.cancel()
+        try await waitUntil { !monitor.isRunning }
+    }
+
+    @MainActor
+    func testScreenActivityMessagesUpdateSamplingState() async throws {
+        let monitor = CPUMonitor()
+        let workspace = NSWorkspace.shared
+        let notificationCenter = workspace.notificationCenter
+
+        notificationCenter.post(NSWorkspace.ScreensDidSleepMessage(), subject: workspace)
+        try await waitUntil { !monitor.isScreenAwake }
+
+        notificationCenter.post(NSWorkspace.ScreensDidWakeMessage(), subject: workspace)
+        try await waitUntil { monitor.isScreenAwake }
+    }
+
+    @MainActor
+    func testLoginSessionMessagesUpdateSamplingState() async throws {
+        let monitor = CPUMonitor()
+        let workspace = NSWorkspace.shared
+        let notificationCenter = workspace.notificationCenter
+
+        notificationCenter.post(NSWorkspace.SessionDidResignActiveMessage(), subject: workspace)
+        XCTAssertFalse(monitor.isSessionActive)
+
+        notificationCenter.post(NSWorkspace.SessionDidBecomeActiveMessage(), subject: workspace)
+        XCTAssertTrue(monitor.isSessionActive)
+    }
+
+    @MainActor
     private func waitUntil(
         timeout: Duration = .seconds(1),
         condition: @escaping @MainActor () -> Bool
@@ -31,5 +110,26 @@ final class CPUMonitorTests: XCTestCase {
         }
 
         XCTAssertTrue(condition())
+    }
+}
+
+private final class CountingMemorySource: MemoryReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var readCount: Int {
+        lock.withLock { count }
+    }
+
+    func read(at timestamp: Date) throws -> MemorySnapshot {
+        lock.withLock {
+            count += 1
+        }
+
+        return MemorySnapshot(
+            usedBytes: 4_096,
+            totalBytes: 8_192,
+            timestamp: timestamp
+        )
     }
 }

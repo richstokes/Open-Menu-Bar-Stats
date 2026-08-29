@@ -1,9 +1,11 @@
 import AppKit
+import Foundation
 import SwiftUI
 
 struct CPUMenuView: View {
     let monitor: CPUMonitor
     @Bindable var preferences: AppPreferences
+    @State private var showsAbout = false
 
     private var displayedCores: [CPUCoreReading] {
         guard let snapshot = monitor.snapshot else { return [] }
@@ -45,6 +47,9 @@ struct CPUMenuView: View {
             footer
         }
         .frame(width: 340)
+        .sheet(isPresented: $showsAbout) {
+            AboutView()
+        }
     }
 
     private var header: some View {
@@ -63,6 +68,15 @@ struct CPUMenuView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+
+                if preferences.showsThermalState {
+                    Label(
+                        "Thermal state: \(monitor.thermalState.title)",
+                        systemImage: "thermometer.medium"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -105,6 +119,11 @@ struct CPUMenuView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .help(errorMessage)
+            } else if preferences.showsMemory, let errorMessage = monitor.memoryErrorMessage {
+                Label("Memory update failed", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help(errorMessage)
             } else {
                 Label("Updates every second", systemImage: "clock.arrow.circlepath")
                     .font(.caption)
@@ -113,11 +132,63 @@ struct CPUMenuView: View {
 
             Spacer()
 
+            Button("About") {
+                showsAbout = true
+            }
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
         }
         .padding(14)
+    }
+}
+
+struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private static let supportURL = URL(
+        string: "https://buymeacoffee.com/richstokes"
+    )!
+
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 13))
+                .accessibilityHidden(true)
+
+            VStack(spacing: 3) {
+                Text("Open Menu Stats")
+                    .font(.title2.bold())
+                Text("Version \(version)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("A lightweight, open-source system monitor for the macOS menu bar.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+
+            Link(destination: Self.supportURL) {
+                Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityHint("Opens buymeacoffee.com in your browser")
+
+            Button("Done") {
+                dismiss()
+            }
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(24)
+        .frame(width: 320)
     }
 }

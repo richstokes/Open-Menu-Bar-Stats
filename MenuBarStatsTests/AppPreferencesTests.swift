@@ -9,6 +9,8 @@ final class AppPreferencesTests: XCTestCase {
 
             XCTAssertEqual(preferences.coreScope, .all)
             XCTAssertEqual(preferences.visualization, .bars)
+            XCTAssertFalse(preferences.showsThermalState)
+            XCTAssertFalse(preferences.showsMemory)
         }
     }
 
@@ -16,11 +18,15 @@ final class AppPreferencesTests: XCTestCase {
         withIsolatedDefaults { defaults in
             defaults.set(CoreScope.busiest.rawValue, forKey: AppPreferences.Keys.coreScope)
             defaults.set(CPUVisualization.numbers.rawValue, forKey: AppPreferences.Keys.visualization)
+            defaults.set(true, forKey: AppPreferences.Keys.showsThermalState)
+            defaults.set(true, forKey: AppPreferences.Keys.showsMemory)
 
             let preferences = AppPreferences(defaults: defaults)
 
             XCTAssertEqual(preferences.coreScope, .busiest)
             XCTAssertEqual(preferences.visualization, .numbers)
+            XCTAssertTrue(preferences.showsThermalState)
+            XCTAssertTrue(preferences.showsMemory)
         }
     }
 
@@ -33,6 +39,8 @@ final class AppPreferencesTests: XCTestCase {
 
             XCTAssertEqual(preferences.coreScope, .all)
             XCTAssertEqual(preferences.visualization, .bars)
+            XCTAssertFalse(preferences.showsThermalState)
+            XCTAssertFalse(preferences.showsMemory)
         }
     }
 
@@ -41,12 +49,48 @@ final class AppPreferencesTests: XCTestCase {
             let preferences = AppPreferences(defaults: defaults)
             preferences.coreScope = .busiest
             preferences.visualization = .numbers
+            preferences.showsThermalState = true
+            preferences.showsMemory = true
 
             let restored = AppPreferences(defaults: defaults)
 
             XCTAssertEqual(restored.coreScope, .busiest)
             XCTAssertEqual(restored.visualization, .numbers)
+            XCTAssertTrue(restored.showsThermalState)
+            XCTAssertTrue(restored.showsMemory)
         }
+    }
+
+    func testMetricVisibilityPreferencesNeverOverwriteEachOther() {
+        withIsolatedDefaults { defaults in
+            let preferences = AppPreferences(defaults: defaults)
+
+            preferences.showsMemory = true
+            XCTAssertTrue(preferences.showsMemory)
+            XCTAssertFalse(preferences.showsThermalState)
+
+            preferences.showsThermalState = true
+            XCTAssertTrue(preferences.showsMemory)
+            XCTAssertTrue(preferences.showsThermalState)
+
+            preferences.showsMemory = false
+            XCTAssertFalse(preferences.showsMemory)
+            XCTAssertTrue(preferences.showsThermalState)
+
+            preferences.showsMemory = true
+            preferences.showsThermalState = false
+
+            let restored = AppPreferences(defaults: defaults)
+            XCTAssertTrue(restored.showsMemory)
+            XCTAssertFalse(restored.showsThermalState)
+        }
+    }
+
+    func testMetricStatusItemsUseDistinctPersistenceNames() {
+        XCTAssertNotEqual(
+            MetricStatusItemController.memoryAutosaveName,
+            MetricStatusItemController.thermalAutosaveName
+        )
     }
 
     private func withIsolatedDefaults(_ body: (UserDefaults) -> Void) {

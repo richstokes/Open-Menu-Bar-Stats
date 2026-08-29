@@ -34,6 +34,7 @@ final class AppPreferences {
     enum Keys {
         static let coreScope = "cpu.scope"
         static let visualization = "cpu.visualization"
+        static let showsThermalState = "cpu.showsThermalState"
         static let showsMemory = "memory.visible"
     }
 
@@ -48,6 +49,10 @@ final class AppPreferences {
         didSet { defaults.set(visualization.rawValue, forKey: Keys.visualization) }
     }
 
+    var showsThermalState: Bool {
+        didSet { defaults.set(showsThermalState, forKey: Keys.showsThermalState) }
+    }
+
     var showsMemory: Bool {
         didSet { defaults.set(showsMemory, forKey: Keys.showsMemory) }
     }
@@ -58,6 +63,7 @@ final class AppPreferences {
         visualization = CPUVisualization(
             rawValue: defaults.string(forKey: Keys.visualization) ?? ""
         ) ?? .bars
+        showsThermalState = defaults.bool(forKey: Keys.showsThermalState)
         showsMemory = defaults.bool(forKey: Keys.showsMemory)
     }
 }

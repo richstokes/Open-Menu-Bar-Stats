@@ -71,9 +71,73 @@ struct CPUStatusLabel: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
-        .task {
-            await monitor.run()
+        .task(
+            id: SamplingConfiguration(
+                samplesMemory: preferences.showsMemory,
+                isScreenAwake: monitor.isScreenAwake,
+                isSessionActive: monitor.isSessionActive
+            ),
+            priority: .utility
+        ) {
+            guard monitor.isScreenAwake, monitor.isSessionActive else { return }
+            await monitor.run(samplesMemory: preferences.showsMemory)
         }
+    }
+}
+
+private struct SamplingConfiguration: Equatable {
+    let samplesMemory: Bool
+    let isScreenAwake: Bool
+    let isSessionActive: Bool
+}
+
+struct MemoryStatusLabel: View {
+    let monitor: CPUMonitor
+
+    private var accessibilityDescription: String {
+        if let snapshot = monitor.memorySnapshot {
+            let updateStatus = monitor.memoryErrorMessage == nil ? "" : ", latest update failed"
+            return "Memory load, \(snapshot.percentage) percent\(updateStatus)"
+        }
+        return monitor.memoryErrorMessage == nil ? "Memory load, measuring" : "Memory load unavailable"
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "memorychip")
+
+            if let snapshot = monitor.memorySnapshot {
+                Text(snapshot.clampedUsage, format: .percent.precision(.fractionLength(0)))
+                    .monospacedDigit()
+                    .frame(width: 38, alignment: .trailing)
+            } else {
+                Text("—")
+                    .frame(width: 38, alignment: .trailing)
+            }
+
+            if monitor.memoryErrorMessage != nil {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
+    }
+}
+
+struct ThermalStatusLabel: View {
+    let monitor: CPUMonitor
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "thermometer.medium")
+            Text(monitor.thermalState.title)
+                .font(.caption)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Thermal state, \(monitor.thermalState.title.lowercased())")
     }
 }
 

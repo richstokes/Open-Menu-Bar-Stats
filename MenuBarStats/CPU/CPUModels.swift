@@ -1,5 +1,40 @@
 import Foundation
 
+enum SystemThermalState: String, Equatable, Sendable {
+    case nominal
+    case fair
+    case serious
+    case critical
+
+    init(_ state: ProcessInfo.ThermalState) {
+        switch state {
+        case .nominal:
+            self = .nominal
+        case .fair:
+            self = .fair
+        case .serious:
+            self = .serious
+        case .critical:
+            self = .critical
+        @unknown default:
+            self = .nominal
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .nominal: "Nominal"
+        case .fair: "Fair"
+        case .serious: "Serious"
+        case .critical: "Critical"
+        }
+    }
+
+    static var current: Self {
+        Self(ProcessInfo.processInfo.thermalState)
+    }
+}
+
 struct CPUTicks: Equatable, Sendable {
     let user: UInt32
     let system: UInt32

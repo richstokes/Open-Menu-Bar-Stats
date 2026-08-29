@@ -24,6 +24,9 @@
 		200000000000000000000018 /* VisualRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000018 /* VisualRenderingTests.swift */; };
 		200000000000000000000019 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* PrivacyInfo.xcprivacy */; };
 		200000000000000000000020 /* CPUMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000020 /* CPUMonitorTests.swift */; };
+		200000000000000000000021 /* MemoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* MemoryModels.swift */; };
+		200000000000000000000022 /* MachMemorySource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* MachMemorySource.swift */; };
+		200000000000000000000023 /* MemoryUsageCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000023 /* MemoryUsageCalculatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +60,9 @@
 		100000000000000000000018 /* VisualRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualRenderingTests.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		100000000000000000000020 /* CPUMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitorTests.swift; sourceTree = "<group>"; };
+		100000000000000000000021 /* MemoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryModels.swift; sourceTree = "<group>"; };
+		100000000000000000000022 /* MachMemorySource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachMemorySource.swift; sourceTree = "<group>"; };
+		100000000000000000000023 /* MemoryUsageCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryUsageCalculatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +106,7 @@
 			children = (
 				000000000000000000000004 /* App */,
 				000000000000000000000005 /* CPU */,
+				000000000000000000000010 /* Memory */,
 				000000000000000000000006 /* Preferences */,
 				000000000000000000000007 /* UI */,
 				100000000000000000000013 /* MenuBarStats.entitlements */,
@@ -136,6 +143,15 @@
 			path = Preferences;
 			sourceTree = "<group>";
 		};
+		000000000000000000000010 /* Memory */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000021 /* MemoryModels.swift */,
+				100000000000000000000022 /* MachMemorySource.swift */,
+			);
+			path = Memory;
+			sourceTree = "<group>";
+		};
 		000000000000000000000007 /* UI */ = {
 			isa = PBXGroup;
 			children = (
@@ -155,6 +171,7 @@
 				100000000000000000000015 /* AppPreferencesTests.swift */,
 				100000000000000000000018 /* VisualRenderingTests.swift */,
 				100000000000000000000020 /* CPUMonitorTests.swift */,
+				100000000000000000000023 /* MemoryUsageCalculatorTests.swift */,
 			);
 			path = MenuBarStatsTests;
 			sourceTree = "<group>";
@@ -276,6 +293,8 @@
 				200000000000000000000010 /* CoreBarChart.swift in Sources */,
 				200000000000000000000011 /* CoreNumberGrid.swift in Sources */,
 				200000000000000000000012 /* PreferencesView.swift in Sources */,
+				200000000000000000000021 /* MemoryModels.swift in Sources */,
+				200000000000000000000022 /* MachMemorySource.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -287,6 +306,7 @@
 				200000000000000000000015 /* AppPreferencesTests.swift in Sources */,
 				200000000000000000000018 /* VisualRenderingTests.swift in Sources */,
 				200000000000000000000020 /* CPUMonitorTests.swift in Sources */,
+				200000000000000000000023 /* MemoryUsageCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,7 +374,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -411,7 +431,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
@@ -434,6 +454,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Stats";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Stats contributors";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -443,8 +464,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
 				PRODUCT_NAME = "Open Menu Stats";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_MEMORY_SAFETY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -464,6 +488,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Open Menu Stats";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Open Menu Stats contributors";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -473,8 +498,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
 				PRODUCT_NAME = "Open Menu Stats";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_MEMORY_SAFETY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -492,8 +520,11 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_MEMORY_SAFETY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Stats.app/Contents/MacOS/Open Menu Stats";
 			};
@@ -512,8 +543,11 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_MEMORY_SAFETY = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Open Menu Stats.app/Contents/MacOS/Open Menu Stats";
 			};
