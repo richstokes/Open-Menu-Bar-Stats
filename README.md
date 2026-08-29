@@ -2,9 +2,9 @@
 
 Open Menu Stats is a lightweight, open-source system monitor for the macOS menu bar. See CPU activity at a glance, with optional Memory and Thermal items when you want them.
 
-Open Menu Stats stays out of the way: no Dock icon, no accounts, no analytics, and no network access.
+Built from the ground up for modern macOS, Open Menu Stats is optimized to keep its own CPU, memory, and energy use low. It requires **macOS 26 Tahoe or later**.
 
-Requires **macOS 26 Tahoe or later**.
+Open Menu Stats stays out of the way: no Dock icon, no accounts, no analytics, and no network access.
 
 ## Highlights
 

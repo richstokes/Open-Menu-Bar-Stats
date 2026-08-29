@@ -1,6 +1,5 @@
 import AppKit
 import Observation
-import OSLog
 import SwiftUI
 
 @main
@@ -35,28 +34,24 @@ final class MenuBarStatsApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Owns the optional status items independently of SwiftUI's primary CPU scene.
+/// Owns one stable status item containing independently toggled metric segments.
 ///
-/// `NSStatusItem.autosaveName` is deliberately unique for every metric. AppKit's
-/// contract requires apps with multiple status items to name them so macOS can
-/// persist each item's position and visibility without conflating their state.
+/// macOS may temporarily suppress individual status items when the right side of
+/// the menu bar reaches its reserved center area, while still reporting those
+/// items as visible. Keeping the metric symbols in one host prevents Memory and
+/// Thermal from appearing to replace each other in a crowded menu bar.
 @MainActor
 final class MetricStatusItemController: NSObject {
-    nonisolated static let cpuAutosaveName = "OpenMenuStats.CPU"
-    nonisolated static let memoryAutosaveName = "OpenMenuStats.Memory"
-    nonisolated static let thermalAutosaveName = "OpenMenuStats.Thermal"
-    private static let logger = Logger(subsystem: "richstokes.menubarstats", category: "StatusItems")
+    nonisolated static let statusItemAutosaveName = "OpenMenuStats.StatusItem.V5"
 
     private let monitor: CPUMonitor
     private let preferences: AppPreferences
 
-    private var cpuStatusItem: NSStatusItem?
-    private var memoryStatusItem: NSStatusItem?
-    private var thermalStatusItem: NSStatusItem?
+    private var statusItem: NSStatusItem?
+    private var contentView: StatusItemContentView?
     private var hasStarted = false
     private var samplingConfiguration: SamplingConfiguration?
     private var samplingTask: Task<Void, Never>?
-    private weak var activeButton: NSStatusBarButton?
 
     private lazy var popover: NSPopover = {
         let popover = NSPopover()
@@ -78,32 +73,7 @@ final class MetricStatusItemController: NSObject {
         guard !hasStarted else { return }
         hasStarted = true
 
-        Self.logger.notice(
-            "Starting status items; memory=\(self.preferences.showsMemory), thermal=\(self.preferences.showsThermalState)"
-        )
-
-        // Create every item exactly once. Their distinct autosave names remain
-        // attached for the entire process; toggles only change visibility.
-        cpuStatusItem = makeStatusItem(
-            autosaveName: Self.cpuAutosaveName,
-            systemImage: "cpu",
-            accessibilityDescription: "CPU usage"
-        )
-        memoryStatusItem = makeStatusItem(
-            autosaveName: Self.memoryAutosaveName,
-            systemImage: "memorychip",
-            accessibilityDescription: "Memory load"
-        )
-        thermalStatusItem = makeStatusItem(
-            autosaveName: Self.thermalAutosaveName,
-            systemImage: "thermometer.medium",
-            accessibilityDescription: "Thermal state"
-        )
-
-        Self.logger.notice(
-            "Created independent items; cpuVisible=\(self.cpuStatusItem?.isVisible ?? false), memoryVisible=\(self.memoryStatusItem?.isVisible ?? false), thermalVisible=\(self.thermalStatusItem?.isVisible ?? false)"
-        )
-
+        (statusItem, contentView) = makeStatusItem()
         observeAndRefresh()
     }
 
@@ -113,13 +83,12 @@ final class MetricStatusItemController: NSObject {
         samplingTask?.cancel()
         samplingTask = nil
 
-        for item in [cpuStatusItem, memoryStatusItem, thermalStatusItem].compactMap({ $0 }) {
-            NSStatusBar.system.removeStatusItem(item)
+        if let statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
         }
 
-        cpuStatusItem = nil
-        memoryStatusItem = nil
-        thermalStatusItem = nil
+        statusItem = nil
+        contentView = nil
     }
 
     private func observeAndRefresh() {
@@ -138,9 +107,7 @@ final class MetricStatusItemController: NSObject {
 
     private func refresh() {
         refreshSamplingTask()
-        refreshCPUStatusItem()
-        refreshMemoryStatusItem()
-        refreshThermalStatusItem()
+        refreshStatusItem()
     }
 
     private func refreshSamplingTask() {
@@ -162,16 +129,36 @@ final class MetricStatusItemController: NSObject {
         }
     }
 
-    private func refreshCPUStatusItem() {
-        guard let cpuStatusItem else { return }
-        cpuStatusItem.isVisible = true
+    private func refreshStatusItem() {
+        guard let statusItem, let contentView, let button = statusItem.button else { return }
+        statusItem.isVisible = true
 
-        guard let button = cpuStatusItem.button else { return }
+        let isCompact = preferences.showsMemory || preferences.showsThermalState
+        let cpuPresentation = makeCPUPresentation(isCompact: isCompact)
+        let memoryPresentation = makeMemoryPresentation()
+        let thermalState = preferences.showsThermalState ? monitor.thermalState : nil
+
+        contentView.update(
+            cpuTitle: cpuPresentation.title,
+            memoryTitle: memoryPresentation?.title,
+            thermalState: thermalState,
+            isCompact: isCompact
+        )
+        statusItem.length = contentView.preferredWidth + 6
+
+        let accessibilityParts = [
+            cpuPresentation.accessibilityLabel,
+            memoryPresentation?.accessibilityLabel,
+            thermalState.map { "Thermal state, \($0.title.lowercased())" }
+        ].compactMap { $0 }
+        let description = accessibilityParts.joined(separator: ". ")
+        button.toolTip = description
+        button.setAccessibilityLabel(description)
+    }
+
+    private func makeCPUPresentation(isCompact: Bool) -> MetricPresentation {
         guard let snapshot = monitor.snapshot else {
-            button.title = "—"
-            button.toolTip = "Measuring CPU usage"
-            button.setAccessibilityLabel("CPU usage, measuring")
-            return
+            return MetricPresentation(title: "—", accessibilityLabel: "CPU usage, measuring")
         }
 
         let selectedUsage: Double
@@ -184,98 +171,75 @@ final class MetricStatusItemController: NSObject {
             accessibilityLabel = "Overall CPU usage, \(snapshot.overallPercentage) percent"
             chartValues = snapshot.cores.map(\.clampedUsage)
         case .busiest:
-            guard let core = snapshot.busiestCore else { return }
+            guard let core = snapshot.busiestCore else {
+                return MetricPresentation(title: "—", accessibilityLabel: "CPU usage, measuring")
+            }
             selectedUsage = core.clampedUsage
             accessibilityLabel = "Busiest CPU, \(core.label), \(core.percentage) percent"
             chartValues = [core.clampedUsage]
         }
 
+        let title: String
         switch preferences.visualization {
         case .numbers:
-            button.title = selectedUsage.formatted(
-                .percent.precision(.fractionLength(0))
-            )
+            if isCompact {
+                title = String(Int((selectedUsage * 100).rounded()))
+            } else {
+                title = selectedUsage.formatted(.percent.precision(.fractionLength(0)))
+            }
         case .bars:
-            button.title = cpuBarText(values: chartValues)
+            title = cpuBarText(values: chartValues, maximumBars: isCompact ? 4 : 10)
         }
 
-        button.toolTip = accessibilityLabel
-        button.setAccessibilityLabel(accessibilityLabel)
+        return MetricPresentation(title: title, accessibilityLabel: accessibilityLabel)
     }
 
-    private func refreshMemoryStatusItem() {
-        guard let memoryStatusItem else { return }
+    private func makeMemoryPresentation() -> MetricPresentation? {
+        guard preferences.showsMemory else { return nil }
 
-        guard preferences.showsMemory else {
-            closePopoverIfAnchored(to: memoryStatusItem)
-            memoryStatusItem.isVisible = false
-            return
+        guard let snapshot = monitor.memorySnapshot else {
+            return MetricPresentation(title: "—", accessibilityLabel: "Memory load, measuring")
         }
 
-        memoryStatusItem.isVisible = true
-        Self.logger.debug("Refreshed memory item as visible")
-        guard let button = memoryStatusItem.button else { return }
-
-        if let snapshot = monitor.memorySnapshot {
-            button.title = "\(snapshot.percentage)%"
-            button.toolTip = "Memory load: \(snapshot.percentage)%"
-            button.setAccessibilityLabel("Memory load, \(snapshot.percentage) percent")
-        } else {
-            button.title = "—"
-            button.toolTip = "Measuring memory load"
-            button.setAccessibilityLabel("Memory load, measuring")
-        }
+        return MetricPresentation(
+            title: String(snapshot.percentage),
+            accessibilityLabel: "Memory load, \(snapshot.percentage) percent"
+        )
     }
 
-    private func refreshThermalStatusItem() {
-        guard let thermalStatusItem else { return }
-
-        guard preferences.showsThermalState else {
-            closePopoverIfAnchored(to: thermalStatusItem)
-            thermalStatusItem.isVisible = false
-            return
-        }
-
-        thermalStatusItem.isVisible = true
-        guard let button = thermalStatusItem.button else { return }
-
-        let state = monitor.thermalState.title
-        button.title = state
-        button.toolTip = "Thermal state: \(state)"
-        button.setAccessibilityLabel("Thermal state, \(state.lowercased())")
-    }
-
-    private func makeStatusItem(
-        autosaveName: String,
-        systemImage: String,
-        accessibilityDescription: String
-    ) -> NSStatusItem {
+    private func makeStatusItem() -> (NSStatusItem, StatusItemContentView) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = autosaveName
+        item.autosaveName = Self.statusItemAutosaveName
+        let contentView = StatusItemContentView()
 
         if let button = item.button {
-            let image = NSImage(
-                systemSymbolName: systemImage,
-                accessibilityDescription: accessibilityDescription
-            )
-            image?.isTemplate = true
-
-            button.image = image
-            button.imagePosition = .imageLeading
-            button.imageScaling = .scaleProportionallyDown
             button.target = self
             button.action = #selector(statusItemClicked(_:))
+            button.addSubview(contentView)
+
+            NSLayoutConstraint.activate([
+                contentView.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 3),
+                contentView.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -3),
+                contentView.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+            ])
         }
 
-        return item
+        contentView.update(
+            cpuTitle: "—",
+            memoryTitle: nil,
+            thermalState: nil,
+            isCompact: false
+        )
+        item.length = contentView.preferredWidth + 6
+        return (item, contentView)
     }
 
-    private func cpuBarText(values: [Double]) -> String {
+    private func cpuBarText(values: [Double], maximumBars: Int) -> String {
         let plottedValues: [Double]
-        if values.count > 10 {
-            plottedValues = (0..<10).map { bucket in
-                let start = bucket * values.count / 10
-                let end = (bucket + 1) * values.count / 10
+        if values.count > maximumBars {
+            plottedValues = (0..<maximumBars).map { bucket in
+                let start = bucket * values.count / maximumBars
+                let end = (bucket + 1) * values.count / maximumBars
                 return values[start..<end].max() ?? 0
             }
         } else {
@@ -290,26 +254,180 @@ final class MetricStatusItemController: NSObject {
         })
     }
 
-    private func closePopoverIfAnchored(to item: NSStatusItem) {
-        guard activeButton === item.button else { return }
-        popover.performClose(nil)
-        activeButton = nil
-    }
-
     @objc
     private func statusItemClicked(_ sender: NSStatusBarButton) {
-        if popover.isShown, activeButton === sender {
+        if popover.isShown {
             popover.performClose(nil)
-            activeButton = nil
             return
         }
 
-        if popover.isShown {
-            popover.performClose(nil)
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+    }
+}
+
+private struct MetricPresentation {
+    let title: String
+    let accessibilityLabel: String
+}
+
+/// Renders each metric as a distinct symbol inside one status-bar button. The
+/// button continues to own clicks, highlighting, accessibility, and anchoring.
+@MainActor
+private final class StatusItemContentView: NSView {
+    private let cpuSegment = StatusMetricSegmentView(
+        systemImage: "cpu",
+        accessibilityDescription: "CPU usage",
+        showsTitle: true
+    )
+    private let memorySegment = StatusMetricSegmentView(
+        systemImage: "memorychip",
+        accessibilityDescription: "Memory load",
+        showsTitle: true
+    )
+    private let thermalSegment = StatusMetricSegmentView(
+        systemImage: "thermometer.medium",
+        accessibilityDescription: "Thermal state",
+        showsTitle: false
+    )
+    private let stackView = NSStackView()
+
+    var preferredWidth: CGFloat {
+        ceil(stackView.fittingSize.width)
+    }
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        setAccessibilityElement(false)
+
+        stackView.orientation = .horizontal
+        stackView.alignment = .centerY
+        stackView.spacing = 5
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(cpuSegment)
+        stackView.addArrangedSubview(memorySegment)
+        stackView.addArrangedSubview(thermalSegment)
+        addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stackView.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
+            stackView.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+
+    func update(
+        cpuTitle: String,
+        memoryTitle: String?,
+        thermalState: SystemThermalState?,
+        isCompact: Bool
+    ) {
+        cpuSegment.title = cpuTitle
+        memorySegment.title = memoryTitle ?? "—"
+        memorySegment.isHidden = memoryTitle == nil
+        thermalSegment.isHidden = thermalState == nil
+
+        if let thermalState {
+            thermalSegment.systemImage = thermalState.systemImage
         }
 
-        activeButton = sender
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        cpuSegment.isCompact = isCompact
+        memorySegment.isCompact = isCompact
+        thermalSegment.isCompact = isCompact
+        stackView.spacing = isCompact ? 4 : 5
+        layoutSubtreeIfNeeded()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+@MainActor
+private final class StatusMetricSegmentView: NSStackView {
+    private let imageView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let imageWidthConstraint: NSLayoutConstraint
+    private let imageHeightConstraint: NSLayoutConstraint
+    private let accessibilityDescription: String
+
+    var systemImage: String {
+        didSet { updateImage() }
+    }
+
+    var title: String {
+        get { titleLabel.stringValue }
+        set { titleLabel.stringValue = newValue }
+    }
+
+    var isCompact = false {
+        didSet {
+            guard isCompact != oldValue else { return }
+            let imageSize: CGFloat = isCompact ? 12 : 16
+            imageWidthConstraint.constant = imageSize
+            imageHeightConstraint.constant = imageSize
+            spacing = isCompact ? 1.5 : 4
+            titleLabel.font = isCompact
+                ? .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+                : .menuBarFont(ofSize: 0)
+        }
+    }
+
+    init(systemImage: String, accessibilityDescription: String, showsTitle: Bool) {
+        self.systemImage = systemImage
+        self.accessibilityDescription = accessibilityDescription
+        imageWidthConstraint = imageView.widthAnchor.constraint(equalToConstant: 16)
+        imageHeightConstraint = imageView.heightAnchor.constraint(equalToConstant: 16)
+        super.init(frame: .zero)
+        setAccessibilityElement(false)
+
+        orientation = .horizontal
+        alignment = .centerY
+        spacing = 4
+
+        updateImage()
+        imageView.imageScaling = .scaleProportionallyDown
+        imageView.contentTintColor = .controlTextColor
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = .menuBarFont(ofSize: 0)
+        titleLabel.textColor = .controlTextColor
+        titleLabel.isHidden = !showsTitle
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        addArrangedSubview(imageView)
+        addArrangedSubview(titleLabel)
+        NSLayoutConstraint.activate([imageWidthConstraint, imageHeightConstraint])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func updateImage() {
+        let image = NSImage(
+            systemSymbolName: systemImage,
+            accessibilityDescription: accessibilityDescription
+        )
+        image?.isTemplate = true
+        imageView.image = image
+    }
+}
+
+private extension SystemThermalState {
+    var systemImage: String {
+        switch self {
+        case .nominal: "thermometer.low"
+        case .fair: "thermometer.medium"
+        case .serious, .critical: "thermometer.high"
+        }
     }
 }
 

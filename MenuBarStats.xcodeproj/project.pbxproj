@@ -27,6 +27,7 @@
 		200000000000000000000021 /* MemoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* MemoryModels.swift */; };
 		200000000000000000000022 /* MachMemorySource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* MachMemorySource.swift */; };
 		200000000000000000000023 /* MemoryUsageCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000023 /* MemoryUsageCalculatorTests.swift */; };
+		200000000000000000000024 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000024 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +64,7 @@
 		100000000000000000000021 /* MemoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryModels.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* MachMemorySource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachMemorySource.swift; sourceTree = "<group>"; };
 		100000000000000000000023 /* MemoryUsageCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryUsageCalculatorTests.swift; sourceTree = "<group>"; };
+		100000000000000000000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +113,7 @@
 				000000000000000000000007 /* UI */,
 				100000000000000000000013 /* MenuBarStats.entitlements */,
 				100000000000000000000019 /* PrivacyInfo.xcprivacy */,
+				100000000000000000000024 /* Assets.xcassets */,
 			);
 			path = MenuBarStats;
 			sourceTree = "<group>";
@@ -264,6 +267,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				200000000000000000000019 /* PrivacyInfo.xcprivacy in Resources */,
+				200000000000000000000024 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,11 +446,13 @@
 		500000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MenuBarStats/MenuBarStats.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = KC28CN8ERG;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -460,7 +466,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
 				PRODUCT_NAME = "Open Menu Stats";
@@ -476,11 +482,13 @@
 		500000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MenuBarStats/MenuBarStats.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = KC28CN8ERG;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -494,7 +502,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = richstokes.menubarstats;
 				PRODUCT_MODULE_NAME = MenuBarStats;
 				PRODUCT_NAME = "Open Menu Stats";
@@ -512,6 +520,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KC28CN8ERG;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -535,6 +544,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KC28CN8ERG;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

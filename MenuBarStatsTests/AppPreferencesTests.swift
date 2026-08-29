@@ -86,13 +86,6 @@ final class AppPreferencesTests: XCTestCase {
         }
     }
 
-    func testMetricStatusItemsUseDistinctPersistenceNames() {
-        XCTAssertNotEqual(
-            MetricStatusItemController.memoryAutosaveName,
-            MetricStatusItemController.thermalAutosaveName
-        )
-    }
-
     private func withIsolatedDefaults(_ body: (UserDefaults) -> Void) {
         let suiteName = "MenuBarStatsTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
