@@ -96,7 +96,7 @@ final class VisualRenderingTests: XCTestCase {
             (
                 "01-every-core.png",
                 "CPU usage\nby core",
-                "View every logical core as a bar chart.",
+                "Show CPU and memory load in your menu bar.",
                 .all,
                 .bars,
                 0.78
@@ -104,7 +104,7 @@ final class VisualRenderingTests: XCTestCase {
             (
                 "02-busiest-core.png",
                 "Busiest core",
-                "Show the most active core as a percentage.",
+                "Select between the busiest core and overall stats.",
                 .busiest,
                 .numbers,
                 0.84
