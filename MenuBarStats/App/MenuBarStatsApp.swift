@@ -477,6 +477,13 @@ private final class StatusItemContentView: NSView {
 
 @MainActor
 final class StatusMetricSegmentView: NSStackView {
+    static let symbolBoxSize = NSSize(width: 20, height: 18)
+    static let symbolConfiguration = NSImage.SymbolConfiguration(
+        pointSize: NSFont.menuBarFont(ofSize: 0).pointSize,
+        weight: .regular,
+        scale: .large
+    )
+
     private let imageView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let imageWidthConstraint: NSLayoutConstraint
@@ -539,9 +546,6 @@ final class StatusMetricSegmentView: NSStackView {
     var isCompact = false {
         didSet {
             guard isCompact != oldValue else { return }
-            let imageSize: CGFloat = isCompact ? 15 : 16
-            imageWidthConstraint.constant = imageSize
-            imageHeightConstraint.constant = imageSize
             spacing = isCompact ? 2.5 : 4
             updateTypographyAndReservedWidth()
         }
@@ -551,8 +555,12 @@ final class StatusMetricSegmentView: NSStackView {
         self.systemImage = systemImage
         self.accessibilityDescription = accessibilityDescription
         supportsTitle = showsTitle
-        imageWidthConstraint = imageView.widthAnchor.constraint(equalToConstant: 16)
-        imageHeightConstraint = imageView.heightAnchor.constraint(equalToConstant: 16)
+        imageWidthConstraint = imageView.widthAnchor.constraint(
+            equalToConstant: Self.symbolBoxSize.width
+        )
+        imageHeightConstraint = imageView.heightAnchor.constraint(
+            equalToConstant: Self.symbolBoxSize.height
+        )
         super.init(frame: .zero)
         setAccessibilityElement(false)
 
@@ -561,6 +569,7 @@ final class StatusMetricSegmentView: NSStackView {
         spacing = 4
 
         updateImage()
+        imageView.symbolConfiguration = Self.symbolConfiguration
         imageView.imageScaling = .scaleProportionallyDown
         imageView.contentTintColor = .labelColor
         imageView.translatesAutoresizingMaskIntoConstraints = false

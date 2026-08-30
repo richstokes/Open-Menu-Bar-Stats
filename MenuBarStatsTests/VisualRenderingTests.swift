@@ -368,13 +368,15 @@ private struct MenuBarStatusPreview: View {
     let visualization: CPUVisualization
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 4) {
             metric(systemImage: "cpu", value: visualization == .numbers ? "93%" : "▂▄▆█")
             metric(systemImage: "memorychip", value: visualization == .numbers ? "50%" : "▄")
             Image(systemName: "thermometer.low")
+                .font(.system(size: 13, weight: .regular))
+                .imageScale(.large)
+                .frame(width: 20, height: 18)
                 .accessibilityLabel("Thermal state")
         }
-        .font(.system(size: 14, weight: .medium))
         .foregroundStyle(.black)
         .padding(.horizontal, 11)
         .frame(height: 32)
@@ -385,10 +387,13 @@ private struct MenuBarStatusPreview: View {
     }
 
     private func metric(systemImage: String, value: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2.5) {
             Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .regular))
+                .imageScale(.large)
+                .frame(width: 20, height: 18)
             Text(value)
-                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .monospacedDigit()
         }
     }

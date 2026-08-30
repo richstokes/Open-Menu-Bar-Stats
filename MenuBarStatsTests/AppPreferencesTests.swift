@@ -151,6 +151,57 @@ final class AppPreferencesTests: XCTestCase {
     }
 
     @MainActor
+    func testStatusSegmentKeepsAStandardSymbolSizeInEveryLayout() throws {
+        let segment = StatusMetricSegmentView(
+            systemImage: "cpu",
+            accessibilityDescription: "CPU usage",
+            showsTitle: true
+        )
+        let imageView = try XCTUnwrap(segment.arrangedSubviews.first as? NSImageView)
+        let expectedSize = StatusMetricSegmentView.symbolBoxSize
+        let widthConstraint = try XCTUnwrap(
+            imageView.constraints.first { $0.firstAttribute == .width }
+        )
+        let heightConstraint = try XCTUnwrap(
+            imageView.constraints.first { $0.firstAttribute == .height }
+        )
+
+        for isCompact in [false, true] {
+            segment.isCompact = isCompact
+
+            XCTAssertEqual(widthConstraint.constant, expectedSize.width, accuracy: 0.01)
+            XCTAssertEqual(heightConstraint.constant, expectedSize.height, accuracy: 0.01)
+            XCTAssertEqual(
+                imageView.symbolConfiguration,
+                StatusMetricSegmentView.symbolConfiguration
+            )
+        }
+    }
+
+    @MainActor
+    func testStatusSegmentWidthIsStableAcrossMenuBarSymbols() {
+        let segment = StatusMetricSegmentView(
+            systemImage: "cpu",
+            accessibilityDescription: "System status",
+            showsTitle: true
+        )
+        segment.title = "42%"
+
+        let widths = [
+            "cpu",
+            "memorychip",
+            "thermometer.medium",
+            "exclamationmark.triangle.fill",
+        ].map { symbolName in
+            segment.systemImage = symbolName
+            segment.layoutSubtreeIfNeeded()
+            return segment.fittingSize.width
+        }
+
+        XCTAssertEqual(Set(widths.map { ($0 * 100).rounded() / 100 }).count, 1)
+    }
+
+    @MainActor
     func testStatusItemControllerCanRestartSampling() async throws {
         let suiteName = "MenuBarStatsControllerTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
