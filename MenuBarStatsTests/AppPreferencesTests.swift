@@ -86,6 +86,16 @@ final class AppPreferencesTests: XCTestCase {
         }
     }
 
+    func testStatusItemsUseDistinctAutosaveNames() {
+        let names = [
+            MetricStatusItemController.statusItemAutosaveName,
+            MetricStatusItemController.memoryStatusItemAutosaveName,
+            MetricStatusItemController.thermalStatusItemAutosaveName,
+        ]
+
+        XCTAssertEqual(Set(names).count, names.count)
+    }
+
     @MainActor
     func testNumericStatusSegmentKeepsAConstantWidth() {
         let segment = StatusMetricSegmentView(
@@ -113,10 +123,13 @@ final class AppPreferencesTests: XCTestCase {
             showsTitle: true
         )
         segment.usesMonospacedText = true
+        segment.reservedTitle = "██████████"
 
         for isCompact in [false, true] {
             segment.isCompact = isCompact
             let widths = [
+                "—",
+                "!",
                 "▁▁▁▁▁▁▁▁▁▁",
                 "██████████",
                 "▁▂▃▄▅▆▇█▁█",
@@ -202,6 +215,100 @@ final class AppPreferencesTests: XCTestCase {
     }
 
     @MainActor
+    func testMetricContentWidthIsIndependentOfItsContainerFrame() {
+        let content = StatusMetricContentView(
+            systemImage: "memorychip",
+            accessibilityDescription: "Memory load"
+        )
+        content.update(
+            title: "59%",
+            reservedTitle: "100%",
+            systemImage: "memorychip",
+            tint: .label,
+            usesMonospacedText: false
+        )
+        let expectedWidth = content.preferredWidth
+
+        for containerWidth in [1.0, 40.0, 300.0] {
+            content.frame.size.width = containerWidth
+            content.layoutSubtreeIfNeeded()
+
+            XCTAssertEqual(content.preferredWidth, expectedWidth, accuracy: 0.01)
+            XCTAssertEqual(content.intrinsicContentSize.width, expectedWidth, accuracy: 0.01)
+        }
+    }
+
+    @MainActor
+    func testOptionalMetricTogglesRebuildOnlyTheVisibleStatusItems() async throws {
+        let suiteName = "MenuBarStatsControllerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let monitor = CPUMonitor()
+        let preferences = AppPreferences(defaults: defaults)
+        preferences.coreScope = .busiest
+        preferences.visualization = .numbers
+        let controller = MetricStatusItemController(
+            monitor: monitor,
+            preferences: preferences
+        )
+        controller.start()
+        defer { controller.stop() }
+
+        let initialCPUHost = try XCTUnwrap(controller.cpuHost)
+        let cpuLength = initialCPUHost.statusItem.length
+
+        XCTAssertNil(controller.memoryHost)
+        XCTAssertNil(controller.thermalHost)
+        XCTAssertTrue(initialCPUHost.desiredVisibility)
+        XCTAssertTrue(initialCPUHost.statusItem.isVisible)
+        XCTAssertTrue(initialCPUHost.statusItem.behavior.contains(.terminationOnRemoval))
+        assertValidLength(of: initialCPUHost)
+
+        preferences.showsMemory = true
+        try await waitUntil { controller.memoryHost?.desiredVisibility == true }
+        let memoryCPUHost = try XCTUnwrap(controller.cpuHost)
+        let memoryHost = try XCTUnwrap(controller.memoryHost)
+        XCTAssertNil(controller.thermalHost)
+        XCTAssertFalse(memoryCPUHost === initialCPUHost)
+        XCTAssertTrue(memoryCPUHost.statusItem.isVisible)
+        XCTAssertTrue(memoryHost.statusItem.isVisible)
+        XCTAssertEqual(memoryCPUHost.statusItem.length, cpuLength, accuracy: 0.01)
+        XCTAssertFalse(memoryHost.statusItem.behavior.contains(.terminationOnRemoval))
+        assertValidLength(of: memoryCPUHost)
+        assertValidLength(of: memoryHost)
+
+        preferences.showsThermalState = true
+        try await waitUntil { controller.thermalHost?.desiredVisibility == true }
+        let thermalHost = try XCTUnwrap(controller.thermalHost)
+        XCTAssertTrue(try XCTUnwrap(controller.cpuHost).statusItem.isVisible)
+        XCTAssertTrue(try XCTUnwrap(controller.memoryHost).statusItem.isVisible)
+        XCTAssertTrue(thermalHost.statusItem.isVisible)
+        XCTAssertFalse(thermalHost.statusItem.behavior.contains(.terminationOnRemoval))
+        assertValidLength(of: thermalHost)
+
+        preferences.showsMemory = false
+        try await waitUntil { controller.memoryHost == nil }
+        XCTAssertTrue(try XCTUnwrap(controller.cpuHost).statusItem.isVisible)
+        XCTAssertTrue(try XCTUnwrap(controller.thermalHost).statusItem.isVisible)
+
+        preferences.showsMemory = true
+        try await waitUntil { controller.memoryHost?.desiredVisibility == true }
+
+        let rebuiltCPUHost = try XCTUnwrap(controller.cpuHost)
+        let rebuiltMemoryHost = try XCTUnwrap(controller.memoryHost)
+        let rebuiltThermalHost = try XCTUnwrap(controller.thermalHost)
+        XCTAssertEqual(rebuiltCPUHost.statusItem.length, cpuLength, accuracy: 0.01)
+        XCTAssertTrue(rebuiltCPUHost.desiredVisibility)
+        XCTAssertTrue(rebuiltCPUHost.statusItem.isVisible)
+        XCTAssertTrue(rebuiltMemoryHost.desiredVisibility)
+        XCTAssertTrue(rebuiltMemoryHost.statusItem.isVisible)
+        XCTAssertTrue(rebuiltThermalHost.desiredVisibility)
+        XCTAssertTrue(rebuiltThermalHost.statusItem.isVisible)
+    }
+
+    @MainActor
     func testStatusItemControllerCanRestartSampling() async throws {
         let suiteName = "MenuBarStatsControllerTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -235,6 +342,25 @@ final class AppPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         body(defaults)
+    }
+
+    @MainActor
+    private func assertValidLength(
+        of host: MetricStatusItemHost,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let length = host.statusItem.length
+        XCTAssertTrue(length.isFinite, file: file, line: line)
+        XCTAssertGreaterThan(length, 6, file: file, line: line)
+        XCTAssertLessThan(length, 160, file: file, line: line)
+        XCTAssertEqual(
+            length,
+            host.contentView.preferredWidth + 6,
+            accuracy: 0.01,
+            file: file,
+            line: line
+        )
     }
 
     @MainActor

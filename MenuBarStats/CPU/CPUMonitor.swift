@@ -95,9 +95,9 @@ final class CPUMonitor {
     ) async {
         guard !Task.isCancelled else { return }
 
-        // SwiftUI can replace the MenuBarExtra label before its previous task has
-        // finished cancelling. A generation handoff makes the newest task the sole
-        // publisher without introducing a short-interval polling loop.
+        // A preference or wake-state change can replace the sampling task before
+        // its predecessor has finished cancelling. A generation handoff makes the
+        // newest task the sole publisher without a short-interval polling loop.
         runGeneration &+= 1
         let generation = runGeneration
         isRunning = true
