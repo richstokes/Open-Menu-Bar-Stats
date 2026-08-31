@@ -98,18 +98,19 @@ final class AppPreferencesTests: XCTestCase {
     }
 
     @MainActor
-    func testNumericStatusSegmentKeepsAConstantWidthBesideItsSymbol() throws {
-        let segment = StatusMetricSegmentView(
-            systemImage: "cpu",
-            accessibilityDescription: "CPU usage",
-            showsTitle: true
-        )
-        segment.reservedTitle = "100%"
-        let titleLabel = try XCTUnwrap(segment.arrangedSubviews.last as? NSTextField)
-
+    func testNumericStatusSegmentKeepsCommonValuesStableAndFits100Percent() throws {
         for isCompact in [false, true] {
+            let segment = StatusMetricSegmentView(
+                systemImage: "cpu",
+                accessibilityDescription: "CPU usage",
+                showsTitle: true
+            )
             segment.isCompact = isCompact
-            let widths = ["1%", "14%", "63%", "100%"].map { title in
+            segment.reservedTitle = "99%"
+            let titleLabel = try XCTUnwrap(
+                segment.arrangedSubviews.last as? NSTextField
+            )
+            let widths = ["1%", "14%", "63%", "99%"].map { title in
                 segment.title = title
                 segment.layoutSubtreeIfNeeded()
                 return segment.reservedFittingWidth
@@ -121,6 +122,45 @@ final class AppPreferencesTests: XCTestCase {
                 "Reserved numeric widths changed: \(widths)"
             )
             XCTAssertEqual(titleLabel.alignment, .left)
+
+            let commonWidth = try XCTUnwrap(widths.first)
+            segment.title = "100%"
+            segment.layoutSubtreeIfNeeded()
+            let expandedWidth = segment.reservedFittingWidth
+            XCTAssertGreaterThan(expandedWidth, commonWidth)
+            XCTAssertGreaterThanOrEqual(
+                expandedWidth,
+                ceil(segment.fittingSize.width)
+            )
+
+            for title in ["99%", "100%", "99%"] {
+                segment.title = title
+                segment.layoutSubtreeIfNeeded()
+                XCTAssertEqual(
+                    segment.reservedFittingWidth,
+                    expandedWidth,
+                    accuracy: 0.01,
+                    "99↔100 must not repeatedly resize the status item"
+                )
+            }
+
+            segment.reservedTitle = "100%"
+            segment.title = "1%"
+            segment.layoutSubtreeIfNeeded()
+            XCTAssertEqual(
+                segment.reservedFittingWidth,
+                expandedWidth,
+                accuracy: 0.01
+            )
+
+            segment.reservedTitle = "99%"
+            segment.layoutSubtreeIfNeeded()
+            XCTAssertEqual(
+                segment.reservedFittingWidth,
+                commonWidth,
+                accuracy: 0.01,
+                "Changing layout mode should reset the observed high-water width"
+            )
         }
     }
 

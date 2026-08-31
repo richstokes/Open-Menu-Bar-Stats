@@ -267,7 +267,16 @@ final class MetricStatusItemController: NSObject {
     private func cpuReservedTitle() -> String? {
         switch preferences.visualization {
         case .numbers:
-            formattedPercentage(1)
+            switch preferences.coreScope {
+            case .all:
+                // Overall CPU normally stays below 100%, so keep its common
+                // range compact. A one-way high-water mark safely handles 100%.
+                formattedPercentage(0.99)
+            case .busiest:
+                // Individual cores commonly reach 100%; reserve it up front to
+                // avoid movement while the busiest core changes every sample.
+                formattedPercentage(1)
+            }
         case .bars:
             String(repeating: "█", count: maximumCPUBarCount)
         }
@@ -766,6 +775,8 @@ final class StatusMetricSegmentView: NSStackView {
     private let accessibilityDescription: String
     private let supportsTitle: Bool
     private var reservedTitleFittingWidth: CGFloat?
+    private var currentTitleFittingWidth: CGFloat = 0
+    private var maximumObservedTitleFittingWidth: CGFloat = 0
 
     var metricAccessibilityDescription: String { accessibilityDescription }
 
@@ -775,7 +786,16 @@ final class StatusMetricSegmentView: NSStackView {
         else {
             return ceil(fittingSize.width)
         }
-        return ceil(Self.symbolBoxSize.width + spacing + reservedTextWidth)
+        // A reservation is a stable minimum, not a clipping limit. This lets
+        // the uncommon 100% value grow beyond the normal two-digit width. Keep
+        // that high-water width until the layout mode changes so 99↔100 cannot
+        // make the status item repeatedly shrink and grow.
+        let stableTitleWidth = max(
+            reservedTextWidth,
+            maximumObservedTitleFittingWidth,
+            currentTitleFittingWidth
+        )
+        return ceil(Self.symbolBoxSize.width + spacing + stableTitleWidth)
     }
 
     var systemImage: String {
@@ -794,6 +814,7 @@ final class StatusMetricSegmentView: NSStackView {
             }
             titleLabel.stringValue = newValue
             titleLabel.isHidden = shouldHide
+            recordMaximumObservedWidth()
         }
     }
 
@@ -820,8 +841,8 @@ final class StatusMetricSegmentView: NSStackView {
         }
     }
 
-    /// Reserves enough horizontal space for the widest numeric value so live
-    /// sampling changes text without moving this or any neighboring segment.
+    /// Reserves a stable minimum width so routine sampling changes do not move
+    /// this or neighboring segments. Wider exceptional values can still fit.
     var reservedTitle: String? {
         didSet {
             guard reservedTitle != oldValue else { return }
@@ -923,6 +944,23 @@ final class StatusMetricSegmentView: NSStackView {
         } else {
             reservedTitleFittingWidth = nil
         }
+        resetMaximumObservedWidth()
+    }
+
+    private func recordMaximumObservedWidth() {
+        guard reservedTitle != nil, !titleLabel.isHidden else { return }
+        currentTitleFittingWidth = titleLabel.fittingSize.width + 1
+        maximumObservedTitleFittingWidth = max(
+            maximumObservedTitleFittingWidth,
+            currentTitleFittingWidth
+        )
+    }
+
+    private func resetMaximumObservedWidth() {
+        currentTitleFittingWidth = reservedTitle == nil || titleLabel.isHidden
+            ? 0
+            : titleLabel.fittingSize.width + 1
+        maximumObservedTitleFittingWidth = currentTitleFittingWidth
     }
 }
 
