@@ -21,7 +21,8 @@ struct MemorySnapshot: Equatable, Sendable {
 
 enum MemoryUsageCalculator {
     static func makeSnapshot(
-        activePages: UInt64,
+        internalPages: UInt64,
+        purgeablePages: UInt64,
         wiredPages: UInt64,
         compressedPages: UInt64,
         pageSize: UInt64,
@@ -30,7 +31,12 @@ enum MemoryUsageCalculator {
     ) -> MemorySnapshot? {
         guard pageSize > 0, totalBytes > 0 else { return nil }
 
-        let usedPages = saturatingSum(activePages, wiredPages, compressedPages)
+        // Approximate Activity Monitor's App Memory + Wired + Compressed breakdown.
+        // Treat purgeable pages as reclaimable when approximating App Memory.
+        let appPages = internalPages >= purgeablePages
+            ? internalPages - purgeablePages
+            : 0
+        let usedPages = saturatingSum(appPages, wiredPages, compressedPages)
         let (calculatedBytes, overflowed) = usedPages.multipliedReportingOverflow(by: pageSize)
         let usedBytes = overflowed ? totalBytes : min(calculatedBytes, totalBytes)
 

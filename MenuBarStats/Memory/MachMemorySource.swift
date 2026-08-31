@@ -78,7 +78,8 @@ struct MachMemorySource: MemoryReading {
         }
 
         guard let snapshot = MemoryUsageCalculator.makeSnapshot(
-            activePages: UInt64(statistics.active_count),
+            internalPages: UInt64(statistics.internal_page_count),
+            purgeablePages: UInt64(statistics.purgeable_count),
             wiredPages: UInt64(statistics.wire_count),
             compressedPages: UInt64(statistics.compressor_page_count),
             pageSize: pageSize,
