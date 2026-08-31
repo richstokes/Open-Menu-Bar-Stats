@@ -34,28 +34,22 @@ final class MenuBarStatsApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Owns independently sized status items for each enabled metric.
-///
-/// macOS may suppress items at the left edge of a crowded menu bar while still
-/// reporting them as visible. Disabled metrics are not kept as hidden hosted
-/// scenes, and the visible set is rebuilt with CPU last so the primary metric
-/// receives the resilient rightmost placement.
+/// Keeps CPU independently reachable while optional metrics share one compact
+/// neighboring item. Neither item is rebuilt when preferences or samples change.
 @MainActor
 final class MetricStatusItemController: NSObject {
-    nonisolated static let statusItemAutosaveName = "OpenMenuStats.StatusItem.V8.CPU"
-    nonisolated static let memoryStatusItemAutosaveName =
-        "OpenMenuStats.StatusItem.V8.Memory"
-    nonisolated static let thermalStatusItemAutosaveName =
-        "OpenMenuStats.StatusItem.V8.Thermal"
+    nonisolated static let cpuStatusItemAutosaveName =
+        "OpenMenuStats.StatusItem.V12.CPU"
+    nonisolated static let optionalStatusItemAutosaveName =
+        "OpenMenuStats.StatusItem.V12.Optional"
 
     private let monitor: CPUMonitor
     private let preferences: AppPreferences
+    private let persistsStatusItemState: Bool
 
     private(set) var cpuHost: MetricStatusItemHost?
-    private(set) var memoryHost: MetricStatusItemHost?
-    private(set) var thermalHost: MetricStatusItemHost?
+    private(set) var optionalHost: MetricStatusItemHost?
     private var hasStarted = false
-    private var statusItemConfiguration: StatusItemConfiguration?
     private var samplingConfiguration: SamplingConfiguration?
     private var samplingTask: Task<Void, Never>?
     private var observationGeneration: UInt64 = 0
@@ -71,9 +65,14 @@ final class MetricStatusItemController: NSObject {
         return popover
     }()
 
-    init(monitor: CPUMonitor, preferences: AppPreferences) {
+    init(
+        monitor: CPUMonitor,
+        preferences: AppPreferences,
+        persistsStatusItemState: Bool = true
+    ) {
         self.monitor = monitor
         self.preferences = preferences
+        self.persistsStatusItemState = persistsStatusItemState
         super.init()
     }
 
@@ -92,17 +91,12 @@ final class MetricStatusItemController: NSObject {
         samplingTask?.cancel()
         samplingTask = nil
         samplingConfiguration = nil
-        statusItemConfiguration = nil
         popover.performClose(nil)
         activeButton = nil
 
-        for host in [cpuHost, memoryHost, thermalHost].compactMap({ $0 }) {
-            NSStatusBar.system.removeStatusItem(host.statusItem)
-        }
-
+        removeStatusItems()
         cpuHost = nil
-        memoryHost = nil
-        thermalHost = nil
+        optionalHost = nil
     }
 
     private func observeAndRefresh(generation: UInt64) {
@@ -153,93 +147,121 @@ final class MetricStatusItemController: NSObject {
     }
 
     private func refreshStatusItem() {
-        let nextConfiguration = StatusItemConfiguration(
-            showsMemory: preferences.showsMemory,
-            showsThermalState: preferences.showsThermalState
-        )
-        if statusItemConfiguration != nextConfiguration {
-            rebuildStatusItems(for: nextConfiguration)
-        }
-        guard let cpuHost else { return }
+        ensureStatusItems()
+        guard let cpuHost, let optionalHost else { return }
+
+        let showsMemory = preferences.showsMemory
+        let showsThermalState = preferences.showsThermalState
 
         let cpuPresentation = makeCPUPresentation()
         cpuHost.update(
-            title: cpuPresentation.title,
-            reservedTitle: cpuReservedTitle(),
-            systemImage: cpuPresentation.hasError ? "exclamationmark.triangle.fill" : "cpu",
-            tint: cpuPresentation.hasError ? .orange : .label,
-            usesMonospacedText: preferences.visualization == .bars,
+            segments: [
+                StatusMetricSegmentState(
+                    title: cpuPresentation.title,
+                    reservedTitle: cpuReservedTitle(),
+                    systemImage: cpuPresentation.hasError
+                        ? "exclamationmark.triangle.fill"
+                        : "cpu",
+                    tint: cpuPresentation.hasError ? .orange : .label,
+                    usesMonospacedText: preferences.visualization == .bars
+                )
+            ],
+            accessibilityDescription: "CPU usage",
             accessibilityValue: cpuPresentation.accessibilityLabel
         )
 
-        if let memoryHost, let memoryPresentation = makeMemoryPresentation() {
-            memoryHost.update(
-                title: memoryPresentation.title,
-                reservedTitle: memoryReservedTitle(),
-                systemImage: memoryPresentation.hasError
-                    ? "exclamationmark.triangle.fill"
-                    : "memorychip",
-                tint: memoryPresentation.hasError ? .orange : .label,
-                usesMonospacedText: preferences.visualization == .bars,
-                accessibilityValue: memoryPresentation.accessibilityLabel
+        var optionalSegments: [StatusMetricSegmentState] = []
+        var optionalAccessibilityValues: [String] = []
+        var optionalMetricNames: [String] = []
+
+        if showsMemory, let memoryPresentation = makeMemoryPresentation() {
+            optionalSegments.append(
+                StatusMetricSegmentState(
+                    title: memoryPresentation.title,
+                    reservedTitle: memoryReservedTitle(),
+                    systemImage: memoryPresentation.hasError
+                        ? "exclamationmark.triangle.fill"
+                        : "memorychip",
+                    tint: memoryPresentation.hasError ? .orange : .label,
+                    usesMonospacedText: preferences.visualization == .bars
+                )
             )
-            memoryHost.setDesiredVisibility(true)
+            optionalAccessibilityValues.append(memoryPresentation.accessibilityLabel)
+            optionalMetricNames.append("memory load")
+        } else {
+            optionalSegments.append(
+                StatusMetricSegmentState(
+                    title: "",
+                    reservedTitle: memoryReservedTitle(),
+                    systemImage: "memorychip",
+                    tint: .label,
+                    usesMonospacedText: preferences.visualization == .bars,
+                    isVisible: false
+                )
+            )
         }
 
-        if let thermalHost {
-            let thermalState = monitor.thermalState
-            thermalHost.update(
+        let thermalState = monitor.thermalState
+        optionalSegments.append(
+            StatusMetricSegmentState(
                 title: thermalState.menuBarTitle ?? "",
                 reservedTitle: nil,
                 systemImage: thermalState.systemImage,
                 tint: thermalState.menuBarTint,
                 usesMonospacedText: false,
-                accessibilityValue: "Thermal state, \(thermalState.title.lowercased())"
+                isVisible: showsThermalState
             )
-            thermalHost.setDesiredVisibility(true)
+        )
+        if showsThermalState {
+            optionalAccessibilityValues.append(
+                "Thermal state, \(thermalState.title.lowercased())"
+            )
+            optionalMetricNames.append("thermal state")
         }
 
-        // Reveal CPU last on first launch; subsequent refreshes are a no-op.
+        optionalHost.update(
+            segments: optionalSegments,
+            accessibilityDescription: joinedMetricNames(optionalMetricNames),
+            accessibilityValue: optionalAccessibilityValues.joined(separator: ". ")
+        )
+
+        // CPU is revealed first and never removed. Optional metrics appear in
+        // their neighboring item without replacing or moving the CPU anchor.
         cpuHost.setDesiredVisibility(true)
+        optionalHost.setDesiredVisibility(showsMemory || showsThermalState)
     }
 
-    private func rebuildStatusItems(for configuration: StatusItemConfiguration) {
-        popover.performClose(nil)
-        activeButton = nil
+    private func ensureStatusItems() {
+        guard cpuHost == nil else { return }
 
-        for host in [cpuHost, memoryHost, thermalHost].compactMap({ $0 }) {
-            NSStatusBar.system.removeStatusItem(host.statusItem)
-        }
-        cpuHost = nil
-        memoryHost = nil
-        thermalHost = nil
-
-        // Later-created items are placed nearer the system menu-bar area. Keep
-        // optional metrics to the left and create CPU last so it degrades best
-        // when the notch or other status items leave limited room.
-        if configuration.showsThermalState {
-            thermalHost = makeStatusItem(
-                autosaveName: Self.thermalStatusItemAutosaveName,
-                systemImage: "thermometer.medium",
-                accessibilityDescription: "Thermal state",
-                terminatesOnRemoval: false
-            )
-        }
-        if configuration.showsMemory {
-            memoryHost = makeStatusItem(
-                autosaveName: Self.memoryStatusItemAutosaveName,
-                systemImage: "memorychip",
-                accessibilityDescription: "Memory load",
-                terminatesOnRemoval: false
-            )
-        }
         cpuHost = makeStatusItem(
-            autosaveName: Self.statusItemAutosaveName,
-            systemImage: "cpu",
+            autosaveName: Self.cpuStatusItemAutosaveName,
+            segments: [
+                StatusMetricSegmentDefinition(
+                    systemImage: "cpu",
+                    accessibilityDescription: "CPU usage"
+                )
+            ],
+            contentAlignment: .leading,
             accessibilityDescription: "CPU usage",
             terminatesOnRemoval: true
         )
-        statusItemConfiguration = configuration
+        optionalHost = makeStatusItem(
+            autosaveName: Self.optionalStatusItemAutosaveName,
+            segments: [
+                StatusMetricSegmentDefinition(
+                    systemImage: "memorychip",
+                    accessibilityDescription: "Memory load"
+                ),
+                StatusMetricSegmentDefinition(
+                    systemImage: monitor.thermalState.systemImage,
+                    accessibilityDescription: "Thermal state"
+                )
+            ],
+            contentAlignment: .trailing,
+            accessibilityDescription: "Optional system metrics",
+            terminatesOnRemoval: false
+        )
     }
 
     private func cpuReservedTitle() -> String? {
@@ -255,6 +277,17 @@ final class MetricStatusItemController: NSObject {
         switch preferences.visualization {
         case .numbers: formattedPercentage(1)
         case .bars: "█"
+        }
+    }
+
+    private func joinedMetricNames(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return "System metrics"
+        case 1: return names[0]
+        case 2: return names.joined(separator: " and ")
+        default:
+            let finalName = names.last ?? "system metrics"
+            return "\(names.dropLast().joined(separator: ", ")), and \(finalName)"
         }
     }
 
@@ -361,20 +394,24 @@ final class MetricStatusItemController: NSObject {
     }
 
     private func makeStatusItem(
-        autosaveName: String,
-        systemImage: String,
+        autosaveName: String?,
+        segments: [StatusMetricSegmentDefinition],
+        contentAlignment: StatusMetricContentAlignment,
         accessibilityDescription: String,
         terminatesOnRemoval: Bool
     ) -> MetricStatusItemHost {
+        precondition(!segments.isEmpty)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = autosaveName
+        if persistsStatusItemState, let autosaveName {
+            item.autosaveName = autosaveName
+        }
         item.isVisible = false
         if terminatesOnRemoval {
             item.behavior = .terminationOnRemoval
         }
         let contentView = StatusMetricContentView(
-            systemImage: systemImage,
-            accessibilityDescription: accessibilityDescription
+            segments: segments,
+            alignment: contentAlignment
         )
 
         if let button = item.button {
@@ -393,14 +430,29 @@ final class MetricStatusItemController: NSObject {
         }
 
         contentView.update(
-            title: "—",
-            reservedTitle: nil,
-            systemImage: systemImage,
-            tint: .label,
-            usesMonospacedText: false
+            segments: segments.map {
+                StatusMetricSegmentState(
+                    title: "—",
+                    reservedTitle: nil,
+                    systemImage: $0.systemImage,
+                    tint: .label,
+                    usesMonospacedText: false
+                )
+            }
         )
-        item.length = contentView.preferredWidth + 6
+        item.length = MetricStatusItemHost.itemLength(
+            forContentWidth: contentView.preferredWidth
+        )
         return MetricStatusItemHost(statusItem: item, contentView: contentView)
+    }
+
+    private func removeStatusItems() {
+        for host in [optionalHost, cpuHost].compactMap({ $0 }) {
+            if !persistsStatusItemState {
+                host.statusItem.autosaveName = nil
+            }
+            NSStatusBar.system.removeStatusItem(host.statusItem)
+        }
     }
 
     private func usageBarText(values: [Double], maximumBars: Int) -> String {
@@ -437,15 +489,30 @@ final class MetricStatusItemController: NSObject {
 
 }
 
-private struct StatusItemConfiguration: Equatable {
-    let showsMemory: Bool
-    let showsThermalState: Bool
-}
-
 private struct MetricPresentation {
     let title: String
     let accessibilityLabel: String
     var hasError = false
+}
+
+struct StatusMetricSegmentDefinition: Equatable {
+    let systemImage: String
+    let accessibilityDescription: String
+}
+
+struct StatusMetricSegmentState: Equatable {
+    let title: String
+    let reservedTitle: String?
+    let systemImage: String
+    let tint: StatusMetricTint
+    let usesMonospacedText: Bool
+    var isVisible = true
+}
+
+enum StatusMetricContentAlignment {
+    case leading
+    case center
+    case trailing
 }
 
 enum StatusMetricTint: Equatable {
@@ -470,14 +537,24 @@ enum StatusMetricTint: Equatable {
 /// visibility, and accessibility are only written when genuinely changed.
 @MainActor
 final class MetricStatusItemHost {
+    /// AppKit adds menu-bar chrome outside the custom content. Reducing the
+    /// requested length keeps neighboring app metrics visually compact while
+    /// retaining a six-point hit-area margin on each side.
+    static let menuBarChromeReduction: CGFloat = 12
+
     let statusItem: NSStatusItem
     let contentView: StatusMetricContentView
     private(set) var desiredVisibility = false
+    private var lastAccessibilityDescription: String?
     private var lastAccessibilityValue: String?
 
     init(statusItem: NSStatusItem, contentView: StatusMetricContentView) {
         self.statusItem = statusItem
         self.contentView = contentView
+    }
+
+    static func itemLength(forContentWidth contentWidth: CGFloat) -> CGFloat {
+        max(1, ceil(contentWidth - menuBarChromeReduction))
     }
 
     func setDesiredVisibility(_ isVisible: Bool) {
@@ -486,54 +563,80 @@ final class MetricStatusItemHost {
         statusItem.isVisible = isVisible
     }
 
+    @discardableResult
     func update(
-        title: String,
-        reservedTitle: String?,
-        systemImage: String,
-        tint: StatusMetricTint,
-        usesMonospacedText: Bool,
+        segments: [StatusMetricSegmentState],
+        accessibilityDescription: String,
         accessibilityValue: String
-    ) {
-        let didChangeWidth = contentView.update(
-            title: title,
-            reservedTitle: reservedTitle,
-            systemImage: systemImage,
-            tint: tint,
-            usesMonospacedText: usesMonospacedText
-        )
+    ) -> Bool {
+        let didChangeWidth = contentView.update(segments: segments)
+        var didSetLength = false
         if didChangeWidth {
-            let nextLength = contentView.preferredWidth + 6
-            if nextLength.isFinite, nextLength > 6,
+            let nextLength = Self.itemLength(
+                forContentWidth: contentView.preferredWidth
+            )
+            if nextLength.isFinite, nextLength > 0,
                 abs(statusItem.length - nextLength) >= 0.5
             {
                 statusItem.length = nextLength
+                didSetLength = true
             }
+        }
+
+        if lastAccessibilityDescription != accessibilityDescription {
+            lastAccessibilityDescription = accessibilityDescription
+            statusItem.button?.toolTip =
+                "Open Menu Bar Stats — \(accessibilityDescription)"
+            statusItem.button?.setAccessibilityLabel(
+                "Open Menu Bar Stats, \(accessibilityDescription)"
+            )
         }
 
         if lastAccessibilityValue != accessibilityValue {
             lastAccessibilityValue = accessibilityValue
             statusItem.button?.setAccessibilityValue(accessibilityValue)
         }
+        return didSetLength
     }
 }
 
-/// Intrinsically sizes one metric independently of its status-bar button. This
-/// avoids feeding the button's current width back into the next width measurement.
+/// Intrinsically sizes visible metrics independently of the status-bar button.
+/// This avoids feeding the button's current width back into the next measurement.
 @MainActor
 final class StatusMetricContentView: NSView {
-    private struct RenderState: Equatable {
-        let title: String
-        let reservedTitle: String?
-        let systemImage: String
-        let tint: StatusMetricTint
-        let usesMonospacedText: Bool
+    static let segmentSpacing: CGFloat = 4
+
+    private let stackView = NSStackView()
+    private let segmentViews: [StatusMetricSegmentView]
+    private var renderState: [StatusMetricSegmentState]?
+
+    var segmentCount: Int { segmentViews.count }
+
+    var visibleSegmentCount: Int {
+        segmentViews.filter { !$0.isHidden }.count
     }
 
-    private let segment: StatusMetricSegmentView
-    private var renderState: RenderState?
+    var segmentAccessibilityDescriptions: [String] {
+        segmentViews.map(\.metricAccessibilityDescription)
+    }
+
+    var visibleSegmentAccessibilityDescriptions: [String] {
+        segmentViews.filter { !$0.isHidden }.map(\.metricAccessibilityDescription)
+    }
+
+    var spacing: CGFloat { stackView.spacing }
+
+    var actualContentWidth: CGFloat {
+        ceil(stackView.fittingSize.width)
+    }
 
     var preferredWidth: CGFloat {
-        ceil(segment.fittingSize.width)
+        let visibleSegments = segmentViews.filter { !$0.isHidden }
+        let segmentWidth = visibleSegments.reduce(CGFloat.zero) {
+            $0 + $1.reservedFittingWidth
+        }
+        let gaps = CGFloat(max(visibleSegments.count - 1, 0)) * stackView.spacing
+        return ceil(segmentWidth + gaps)
     }
 
     override var intrinsicContentSize: NSSize {
@@ -541,28 +644,56 @@ final class StatusMetricContentView: NSView {
             width: preferredWidth,
             height: ceil(
                 max(
-                    segment.fittingSize.height,
+                    stackView.fittingSize.height,
                     StatusMetricSegmentView.symbolBoxSize.height
                 )
             )
         )
     }
 
-    init(systemImage: String, accessibilityDescription: String) {
-        segment = StatusMetricSegmentView(
-            systemImage: systemImage,
-            accessibilityDescription: accessibilityDescription,
-            showsTitle: true
+    convenience init(systemImage: String, accessibilityDescription: String) {
+        self.init(
+            segments: [
+                StatusMetricSegmentDefinition(
+                    systemImage: systemImage,
+                    accessibilityDescription: accessibilityDescription
+                )
+            ],
+            alignment: .center
         )
+    }
+
+    init(
+        segments: [StatusMetricSegmentDefinition],
+        alignment: StatusMetricContentAlignment = .center
+    ) {
+        precondition(!segments.isEmpty)
+        segmentViews = segments.map {
+            StatusMetricSegmentView(
+                systemImage: $0.systemImage,
+                accessibilityDescription: $0.accessibilityDescription,
+                showsTitle: true
+            )
+        }
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         setAccessibilityElement(false)
 
-        segment.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(segment)
+        stackView.orientation = .horizontal
+        stackView.alignment = .centerY
+        stackView.spacing = Self.segmentSpacing
+        stackView.detachesHiddenViews = true
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        segmentViews.forEach(stackView.addArrangedSubview)
+        addSubview(stackView)
+        let horizontalConstraint = switch alignment {
+        case .leading: stackView.leadingAnchor.constraint(equalTo: leadingAnchor)
+        case .center: stackView.centerXAnchor.constraint(equalTo: centerXAnchor)
+        case .trailing: stackView.trailingAnchor.constraint(equalTo: trailingAnchor)
+        }
         NSLayoutConstraint.activate([
-            segment.centerXAnchor.constraint(equalTo: centerXAnchor),
-            segment.centerYAnchor.constraint(equalTo: centerYAnchor)
+            horizontalConstraint,
+            stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
@@ -574,24 +705,37 @@ final class StatusMetricContentView: NSView {
         tint: StatusMetricTint,
         usesMonospacedText: Bool
     ) -> Bool {
-        let nextState = RenderState(
-            title: title,
-            reservedTitle: reservedTitle,
-            systemImage: systemImage,
-            tint: tint,
-            usesMonospacedText: usesMonospacedText
+        update(
+            segments: [
+                StatusMetricSegmentState(
+                    title: title,
+                    reservedTitle: reservedTitle,
+                    systemImage: systemImage,
+                    tint: tint,
+                    usesMonospacedText: usesMonospacedText
+                )
+            ]
         )
+    }
+
+    @discardableResult
+    func update(segments nextState: [StatusMetricSegmentState]) -> Bool {
+        precondition(nextState.count == segmentViews.count)
         guard nextState != renderState else { return false }
         let previousWidth = preferredWidth
         renderState = nextState
 
-        segment.title = title
-        segment.systemImage = systemImage
-        segment.symbolColor = tint.color
-        segment.titleColor = .labelColor
-        segment.usesMonospacedText = usesMonospacedText
-        segment.reservedTitle = reservedTitle
-        segment.layoutSubtreeIfNeeded()
+        for (segment, state) in zip(segmentViews, nextState) {
+            segment.title = state.title
+            segment.systemImage = state.systemImage
+            segment.symbolColor = state.tint.color
+            segment.titleColor = .labelColor
+            segment.usesMonospacedText = state.usesMonospacedText
+            segment.reservedTitle = state.reservedTitle
+            segment.isHidden = !state.isVisible
+            segment.layoutSubtreeIfNeeded()
+        }
+        stackView.layoutSubtreeIfNeeded()
         invalidateIntrinsicContentSize()
         return abs(preferredWidth - previousWidth) >= 0.5
     }
@@ -621,7 +765,18 @@ final class StatusMetricSegmentView: NSStackView {
     private let imageHeightConstraint: NSLayoutConstraint
     private let accessibilityDescription: String
     private let supportsTitle: Bool
-    private var titleWidthConstraint: NSLayoutConstraint?
+    private var reservedTitleFittingWidth: CGFloat?
+
+    var metricAccessibilityDescription: String { accessibilityDescription }
+
+    var reservedFittingWidth: CGFloat {
+        guard let reservedTextWidth = reservedTitleFittingWidth,
+            !titleLabel.isHidden
+        else {
+            return ceil(fittingSize.width)
+        }
+        return ceil(Self.symbolBoxSize.width + spacing + reservedTextWidth)
+    }
 
     var systemImage: String {
         didSet {
@@ -661,7 +816,7 @@ final class StatusMetricSegmentView: NSStackView {
     var usesMonospacedText = false {
         didSet {
             guard usesMonospacedText != oldValue else { return }
-            updateTypographyAndReservedWidth()
+            updateTypography()
         }
     }
 
@@ -670,7 +825,7 @@ final class StatusMetricSegmentView: NSStackView {
     var reservedTitle: String? {
         didSet {
             guard reservedTitle != oldValue else { return }
-            updateTypographyAndReservedWidth()
+            updateTypography()
         }
     }
 
@@ -678,11 +833,15 @@ final class StatusMetricSegmentView: NSStackView {
         didSet {
             guard isCompact != oldValue else { return }
             spacing = isCompact ? 2.5 : 4
-            updateTypographyAndReservedWidth()
+            updateTypography()
         }
     }
 
-    init(systemImage: String, accessibilityDescription: String, showsTitle: Bool) {
+    init(
+        systemImage: String,
+        accessibilityDescription: String,
+        showsTitle: Bool
+    ) {
         self.systemImage = systemImage
         self.accessibilityDescription = accessibilityDescription
         supportsTitle = showsTitle
@@ -707,7 +866,9 @@ final class StatusMetricSegmentView: NSStackView {
         titleLabel.font = .menuBarFont(ofSize: 0)
         titleLabel.textColor = .labelColor
         titleLabel.isHidden = !showsTitle
-        titleLabel.alignment = .right
+        // The outer status-item width is reserved separately, so the rendered
+        // value can stay immediately beside its symbol without layout churn.
+        titleLabel.alignment = .left
         titleLabel.lineBreakMode = .byClipping
         titleLabel.usesSingleLineMode = true
         titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -731,7 +892,7 @@ final class StatusMetricSegmentView: NSStackView {
         imageView.image = image
     }
 
-    private func updateTypographyAndReservedWidth() {
+    private func updateTypography() {
         let pointSize = isCompact ? 12 : NSFont.menuBarFont(ofSize: 0).pointSize
         let font: NSFont
         if usesMonospacedText {
@@ -751,21 +912,16 @@ final class StatusMetricSegmentView: NSStackView {
         }
         titleLabel.font = font
 
-        guard let reservedTitle else {
-            titleWidthConstraint?.isActive = false
-            return
-        }
-
-        let reservedWidth = ceil(
-            (reservedTitle as NSString).size(withAttributes: [.font: font]).width
-        )
-        if let titleWidthConstraint {
-            titleWidthConstraint.constant = reservedWidth
-            titleWidthConstraint.isActive = true
+        if let reservedTitle {
+            let sizingLabel = NSTextField(labelWithString: reservedTitle)
+            sizingLabel.font = font
+            sizingLabel.lineBreakMode = .byClipping
+            sizingLabel.usesSingleLineMode = true
+            // NSTextField's cell can round one point wider once arranged in a
+            // stack view; reserve that point so the 100% boundary stays stable.
+            reservedTitleFittingWidth = sizingLabel.fittingSize.width + 1
         } else {
-            let constraint = titleLabel.widthAnchor.constraint(equalToConstant: reservedWidth)
-            constraint.isActive = true
-            titleWidthConstraint = constraint
+            reservedTitleFittingWidth = nil
         }
     }
 }
