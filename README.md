@@ -6,6 +6,12 @@ Built from the ground up for modern macOS, Open Menu Bar Stats is optimized to k
 
 Open Menu Bar Stats stays out of the way: no Dock icon, no accounts, no analytics, and no network access.
 
+## At a glance
+
+| Numbers | Bars |
+| --- | --- |
+| ![CPU and Memory shown as percentages](Docs/Images/menu-bar-numbers.png) | ![CPU and Memory shown as compact bars](Docs/Images/menu-bar-bars.png) |
+
 ## Highlights
 
 - View all logical CPU cores or follow the busiest core.
