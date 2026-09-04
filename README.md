@@ -21,6 +21,10 @@ Open Menu Bar Stats stays out of the way: no Dock icon, no accounts, no analytic
 - Keep your display choices between launches.
 - Accessible with VoiceOver, Increase Contrast, and Reduce Motion.
 
+## Install
+
+[Install Open Menu Bar Stats from the Mac App Store](https://apps.apple.com/us/app/open-menu-stats/id6806666233).
+
 ## Build from source
 
 Open `MenuBarStats.xcodeproj` in Xcode 26 or later, select the `MenuBarStats` scheme, and run it on **My Mac**.
