@@ -39,9 +39,9 @@ final class MenuBarStatsApplicationDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 final class MetricStatusItemController: NSObject {
     nonisolated static let cpuStatusItemAutosaveName =
-        "OpenMenuStats.StatusItem.V12.CPU"
+        "OpenMenuStats.StatusItem.V13.CPU"
     nonisolated static let optionalStatusItemAutosaveName =
-        "OpenMenuStats.StatusItem.V12.Optional"
+        "OpenMenuStats.StatusItem.V13.Optional"
 
     private let monitor: CPUMonitor
     private let preferences: AppPreferences
@@ -225,27 +225,18 @@ final class MetricStatusItemController: NSObject {
             accessibilityValue: optionalAccessibilityValues.joined(separator: ". ")
         )
 
-        // CPU is revealed first and never removed. Optional metrics appear in
-        // their neighboring item without replacing or moving the CPU anchor.
-        cpuHost.setDesiredVisibility(true)
+        // AppKit inserts the item revealed later to the left. Reveal the
+        // optional group first so its final Thermal segment stays at the far
+        // right, with CPU immediately to the group's left.
         optionalHost.setDesiredVisibility(showsMemory || showsThermalState)
+        cpuHost.setDesiredVisibility(true)
     }
 
     private func ensureStatusItems() {
         guard cpuHost == nil else { return }
 
-        cpuHost = makeStatusItem(
-            autosaveName: Self.cpuStatusItemAutosaveName,
-            segments: [
-                StatusMetricSegmentDefinition(
-                    systemImage: "cpu",
-                    accessibilityDescription: "CPU usage"
-                )
-            ],
-            contentAlignment: .leading,
-            accessibilityDescription: "CPU usage",
-            terminatesOnRemoval: true
-        )
+        // Create these in display-order priority: the optional group first,
+        // then CPU, so CPU is placed immediately to its left.
         optionalHost = makeStatusItem(
             autosaveName: Self.optionalStatusItemAutosaveName,
             segments: [
@@ -262,21 +253,26 @@ final class MetricStatusItemController: NSObject {
             accessibilityDescription: "Optional system metrics",
             terminatesOnRemoval: false
         )
+        cpuHost = makeStatusItem(
+            autosaveName: Self.cpuStatusItemAutosaveName,
+            segments: [
+                StatusMetricSegmentDefinition(
+                    systemImage: "cpu",
+                    accessibilityDescription: "CPU usage"
+                )
+            ],
+            contentAlignment: .center,
+            accessibilityDescription: "CPU usage",
+            terminatesOnRemoval: true
+        )
     }
 
     private func cpuReservedTitle() -> String? {
         switch preferences.visualization {
-        case .numbers:
-            switch preferences.coreScope {
-            case .all:
-                // Overall CPU normally stays below 100%, so keep its common
-                // range compact. A one-way high-water mark safely handles 100%.
-                formattedPercentage(0.99)
-            case .busiest:
-                // Individual cores commonly reach 100%; reserve it up front to
-                // avoid movement while the busiest core changes every sample.
-                formattedPercentage(1)
-            }
+        // Keep the common one- and two-digit range steady. The uncommon 100%
+        // value may grow left temporarily rather than leaving a permanent
+        // three-digit gap in the menu bar.
+        case .numbers: formattedPercentage(0.99)
         case .bars:
             String(repeating: "█", count: maximumCPUBarCount)
         }
@@ -284,7 +280,7 @@ final class MetricStatusItemController: NSObject {
 
     private func memoryReservedTitle() -> String {
         switch preferences.visualization {
-        case .numbers: formattedPercentage(1)
+        case .numbers: formattedPercentage(0.99)
         case .bars: "█"
         }
     }
@@ -762,6 +758,7 @@ final class StatusMetricContentView: NSView {
 @MainActor
 final class StatusMetricSegmentView: NSStackView {
     static let symbolBoxSize = NSSize(width: 20, height: 18)
+    static let iconTitleSpacing: CGFloat = 1
     static let symbolConfiguration = NSImage.SymbolConfiguration(
         pointSize: NSFont.menuBarFont(ofSize: 0).pointSize,
         weight: .regular,
@@ -774,28 +771,12 @@ final class StatusMetricSegmentView: NSStackView {
     private let imageHeightConstraint: NSLayoutConstraint
     private let accessibilityDescription: String
     private let supportsTitle: Bool
-    private var reservedTitleFittingWidth: CGFloat?
-    private var currentTitleFittingWidth: CGFloat = 0
-    private var maximumObservedTitleFittingWidth: CGFloat = 0
+    private var titleWidthConstraint: NSLayoutConstraint?
 
     var metricAccessibilityDescription: String { accessibilityDescription }
 
     var reservedFittingWidth: CGFloat {
-        guard let reservedTextWidth = reservedTitleFittingWidth,
-            !titleLabel.isHidden
-        else {
-            return ceil(fittingSize.width)
-        }
-        // A reservation is a stable minimum, not a clipping limit. This lets
-        // the uncommon 100% value grow beyond the normal two-digit width. Keep
-        // that high-water width until the layout mode changes so 99↔100 cannot
-        // make the status item repeatedly shrink and grow.
-        let stableTitleWidth = max(
-            reservedTextWidth,
-            maximumObservedTitleFittingWidth,
-            currentTitleFittingWidth
-        )
-        return ceil(Self.symbolBoxSize.width + spacing + stableTitleWidth)
+        ceil(fittingSize.width)
     }
 
     var systemImage: String {
@@ -814,7 +795,7 @@ final class StatusMetricSegmentView: NSStackView {
             }
             titleLabel.stringValue = newValue
             titleLabel.isHidden = shouldHide
-            recordMaximumObservedWidth()
+            updateTitleWidthConstraint()
         }
     }
 
@@ -841,8 +822,8 @@ final class StatusMetricSegmentView: NSStackView {
         }
     }
 
-    /// Reserves a stable minimum width so routine sampling changes do not move
-    /// this or neighboring segments. Wider exceptional values can still fit.
+    /// Reserves width inside the title field so unused space cannot leak out
+    /// between neighboring status items. Wider exceptional values can grow.
     var reservedTitle: String? {
         didSet {
             guard reservedTitle != oldValue else { return }
@@ -853,7 +834,7 @@ final class StatusMetricSegmentView: NSStackView {
     var isCompact = false {
         didSet {
             guard isCompact != oldValue else { return }
-            spacing = isCompact ? 2.5 : 4
+            spacing = Self.iconTitleSpacing
             updateTypography()
         }
     }
@@ -877,7 +858,7 @@ final class StatusMetricSegmentView: NSStackView {
 
         orientation = .horizontal
         alignment = .centerY
-        spacing = 4
+        spacing = Self.iconTitleSpacing
 
         updateImage()
         imageView.symbolConfiguration = Self.symbolConfiguration
@@ -887,9 +868,7 @@ final class StatusMetricSegmentView: NSStackView {
         titleLabel.font = .menuBarFont(ofSize: 0)
         titleLabel.textColor = .labelColor
         titleLabel.isHidden = !showsTitle
-        // The outer status-item width is reserved separately, so the rendered
-        // value can stay immediately beside its symbol without layout churn.
-        titleLabel.alignment = .left
+        titleLabel.alignment = .right
         titleLabel.lineBreakMode = .byClipping
         titleLabel.usesSingleLineMode = true
         titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -933,34 +912,36 @@ final class StatusMetricSegmentView: NSStackView {
         }
         titleLabel.font = font
 
-        if let reservedTitle {
-            let sizingLabel = NSTextField(labelWithString: reservedTitle)
-            sizingLabel.font = font
-            sizingLabel.lineBreakMode = .byClipping
-            sizingLabel.usesSingleLineMode = true
-            // NSTextField's cell can round one point wider once arranged in a
-            // stack view; reserve that point so the 100% boundary stays stable.
-            reservedTitleFittingWidth = sizingLabel.fittingSize.width + 1
-        } else {
-            reservedTitleFittingWidth = nil
+        updateTitleWidthConstraint()
+    }
+
+    private func updateTitleWidthConstraint() {
+        guard let reservedTitle, !titleLabel.isHidden else {
+            titleWidthConstraint?.isActive = false
+            return
         }
-        resetMaximumObservedWidth()
-    }
 
-    private func recordMaximumObservedWidth() {
-        guard reservedTitle != nil, !titleLabel.isHidden else { return }
-        currentTitleFittingWidth = titleLabel.fittingSize.width + 1
-        maximumObservedTitleFittingWidth = max(
-            maximumObservedTitleFittingWidth,
-            currentTitleFittingWidth
+        let width = max(
+            fittingWidth(for: reservedTitle),
+            fittingWidth(for: titleLabel.stringValue)
         )
+        if let titleWidthConstraint {
+            titleWidthConstraint.constant = width
+            titleWidthConstraint.isActive = true
+        } else {
+            let constraint = titleLabel.widthAnchor.constraint(equalToConstant: width)
+            constraint.isActive = true
+            titleWidthConstraint = constraint
+        }
     }
 
-    private func resetMaximumObservedWidth() {
-        currentTitleFittingWidth = reservedTitle == nil || titleLabel.isHidden
-            ? 0
-            : titleLabel.fittingSize.width + 1
-        maximumObservedTitleFittingWidth = currentTitleFittingWidth
+    private func fittingWidth(for text: String) -> CGFloat {
+        let sizingLabel = NSTextField(labelWithString: text)
+        sizingLabel.font = titleLabel.font
+        sizingLabel.lineBreakMode = .byClipping
+        sizingLabel.usesSingleLineMode = true
+        // NSTextField can round one point wider once arranged in a stack view.
+        return ceil(sizingLabel.fittingSize.width + 1)
     }
 }
 

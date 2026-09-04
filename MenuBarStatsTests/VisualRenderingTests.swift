@@ -387,7 +387,7 @@ private struct MenuBarStatusPreview: View {
     }
 
     private func metric(systemImage: String, value: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 1) {
             Image(systemName: systemImage)
                 .font(.system(size: 13, weight: .regular))
                 .imageScale(.large)

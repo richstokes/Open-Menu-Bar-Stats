@@ -89,11 +89,11 @@ final class AppPreferencesTests: XCTestCase {
     func testPersistentStatusItemsUseDistinctFreshAutosaveNames() {
         XCTAssertEqual(
             MetricStatusItemController.cpuStatusItemAutosaveName,
-            "OpenMenuStats.StatusItem.V12.CPU"
+            "OpenMenuStats.StatusItem.V13.CPU"
         )
         XCTAssertEqual(
             MetricStatusItemController.optionalStatusItemAutosaveName,
-            "OpenMenuStats.StatusItem.V12.Optional"
+            "OpenMenuStats.StatusItem.V13.Optional"
         )
     }
 
@@ -121,7 +121,7 @@ final class AppPreferencesTests: XCTestCase {
                 1,
                 "Reserved numeric widths changed: \(widths)"
             )
-            XCTAssertEqual(titleLabel.alignment, .left)
+            XCTAssertEqual(titleLabel.alignment, .right)
 
             let commonWidth = try XCTUnwrap(widths.first)
             segment.title = "100%"
@@ -133,16 +133,17 @@ final class AppPreferencesTests: XCTestCase {
                 ceil(segment.fittingSize.width)
             )
 
-            for title in ["99%", "100%", "99%"] {
-                segment.title = title
-                segment.layoutSubtreeIfNeeded()
-                XCTAssertEqual(
-                    segment.reservedFittingWidth,
-                    expandedWidth,
-                    accuracy: 0.01,
-                    "99↔100 must not repeatedly resize the status item"
-                )
-            }
+            segment.title = "99%"
+            segment.layoutSubtreeIfNeeded()
+            XCTAssertEqual(segment.reservedFittingWidth, commonWidth, accuracy: 0.01)
+
+            segment.title = "100%"
+            segment.layoutSubtreeIfNeeded()
+            XCTAssertEqual(segment.reservedFittingWidth, expandedWidth, accuracy: 0.01)
+
+            segment.title = "99%"
+            segment.layoutSubtreeIfNeeded()
+            XCTAssertEqual(segment.reservedFittingWidth, commonWidth, accuracy: 0.01)
 
             segment.reservedTitle = "100%"
             segment.title = "1%"
@@ -158,8 +159,7 @@ final class AppPreferencesTests: XCTestCase {
             XCTAssertEqual(
                 segment.reservedFittingWidth,
                 commonWidth,
-                accuracy: 0.01,
-                "Changing layout mode should reset the observed high-water width"
+                accuracy: 0.01
             )
         }
     }
@@ -200,19 +200,15 @@ final class AppPreferencesTests: XCTestCase {
 
         XCTAssertTrue(content.update(segments: makeState("3%")))
         let reservedWidth = content.preferredWidth
-        let shortContentWidth = content.actualContentWidth
-        XCTAssertLessThan(shortContentWidth, reservedWidth)
+        XCTAssertEqual(content.actualContentWidth, reservedWidth, accuracy: 0.01)
 
         XCTAssertFalse(content.update(segments: makeState("65%")))
         XCTAssertEqual(content.preferredWidth, reservedWidth, accuracy: 0.01)
-        XCTAssertGreaterThan(content.actualContentWidth, shortContentWidth)
-        XCTAssertLessThanOrEqual(content.actualContentWidth, reservedWidth)
-        let mediumContentWidth = content.actualContentWidth
+        XCTAssertEqual(content.actualContentWidth, reservedWidth, accuracy: 0.01)
 
         XCTAssertFalse(content.update(segments: makeState("100%")))
         XCTAssertEqual(content.preferredWidth, reservedWidth, accuracy: 0.01)
-        XCTAssertGreaterThan(content.actualContentWidth, mediumContentWidth)
-        XCTAssertLessThanOrEqual(content.actualContentWidth, reservedWidth)
+        XCTAssertEqual(content.actualContentWidth, reservedWidth, accuracy: 0.01)
     }
 
     @MainActor
@@ -282,6 +278,11 @@ final class AppPreferencesTests: XCTestCase {
         for isCompact in [false, true] {
             segment.isCompact = isCompact
 
+            XCTAssertEqual(
+                segment.spacing,
+                StatusMetricSegmentView.iconTitleSpacing,
+                accuracy: 0.01
+            )
             XCTAssertEqual(widthConstraint.constant, expectedSize.width, accuracy: 0.01)
             XCTAssertEqual(heightConstraint.constant, expectedSize.height, accuracy: 0.01)
             XCTAssertEqual(
@@ -336,6 +337,56 @@ final class AppPreferencesTests: XCTestCase {
             XCTAssertEqual(content.preferredWidth, expectedWidth, accuracy: 0.01)
             XCTAssertEqual(content.intrinsicContentSize.width, expectedWidth, accuracy: 0.01)
         }
+    }
+
+    @MainActor
+    func testReservedTitleWidthIsInsideRenderedMetric() throws {
+        let content = StatusMetricContentView(
+            segments: [
+                StatusMetricSegmentDefinition(
+                    systemImage: "cpu",
+                    accessibilityDescription: "CPU usage"
+                )
+            ]
+        )
+        let makeState: (String) -> [StatusMetricSegmentState] = { title in
+            [
+                StatusMetricSegmentState(
+                    title: title,
+                    reservedTitle: "99%",
+                    systemImage: "cpu",
+                    tint: .label,
+                    usesMonospacedText: false
+                )
+            ]
+        }
+
+        XCTAssertTrue(content.update(segments: makeState("9%")))
+        let reservedWidth = content.preferredWidth
+        content.layoutSubtreeIfNeeded()
+        let stackView = try XCTUnwrap(content.subviews.first as? NSStackView)
+        let segment = try XCTUnwrap(
+            stackView.arrangedSubviews.first as? StatusMetricSegmentView
+        )
+        let titleLabel = try XCTUnwrap(
+            segment.arrangedSubviews.last as? NSTextField
+        )
+        XCTAssertEqual(titleLabel.alignment, .right)
+        XCTAssertEqual(content.actualContentWidth, reservedWidth, accuracy: 0.01)
+
+        XCTAssertFalse(content.update(segments: makeState("16%")))
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(content.preferredWidth, reservedWidth, accuracy: 0.01)
+        XCTAssertEqual(content.actualContentWidth, reservedWidth, accuracy: 0.01)
+
+        XCTAssertTrue(content.update(segments: makeState("100%")))
+        content.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(content.preferredWidth, reservedWidth)
+        XCTAssertEqual(
+            content.actualContentWidth,
+            content.preferredWidth,
+            accuracy: 0.01
+        )
     }
 
     @MainActor
@@ -479,7 +530,6 @@ final class AppPreferencesTests: XCTestCase {
         let initialOptionalHost = try XCTUnwrap(controller.optionalHost)
         let initialCPUStatusItem = initialCPUHost.statusItem
         let initialOptionalStatusItem = initialOptionalHost.statusItem
-        let cpuLength = initialCPUHost.statusItem.length
 
         XCTAssertEqual(initialCPUHost.contentView.segmentCount, 1)
         XCTAssertEqual(initialCPUHost.contentView.visibleSegmentCount, 1)
@@ -517,7 +567,6 @@ final class AppPreferencesTests: XCTestCase {
         let memoryHost = try XCTUnwrap(controller.optionalHost)
         XCTAssertTrue(memoryCPUHost === initialCPUHost)
         XCTAssertTrue(memoryCPUHost.statusItem === initialCPUStatusItem)
-        XCTAssertEqual(memoryCPUHost.statusItem.length, cpuLength, accuracy: 0.01)
         XCTAssertTrue(memoryHost === initialOptionalHost)
         XCTAssertTrue(memoryHost.statusItem === initialOptionalStatusItem)
         XCTAssertTrue(memoryHost.statusItem.isVisible)
@@ -557,7 +606,6 @@ final class AppPreferencesTests: XCTestCase {
         )
         assertValidLength(of: combinedHost)
         assertCPUIsVisibleAndTerminates(initialCPUHost)
-        XCTAssertEqual(initialCPUHost.statusItem.length, cpuLength, accuracy: 0.01)
 
         preferences.showsMemory = false
         try await waitUntil {
@@ -583,7 +631,6 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertTrue(cpuOnlyHost === initialCPUHost)
         XCTAssertTrue(cpuOnlyHost.statusItem === initialCPUStatusItem)
         assertCPUIsVisibleAndTerminates(cpuOnlyHost)
-        XCTAssertEqual(cpuOnlyHost.statusItem.length, cpuLength, accuracy: 0.01)
         XCTAssertTrue(hiddenOptionalHost === initialOptionalHost)
         XCTAssertTrue(hiddenOptionalHost.statusItem === initialOptionalStatusItem)
         XCTAssertFalse(hiddenOptionalHost.statusItem.isVisible)
