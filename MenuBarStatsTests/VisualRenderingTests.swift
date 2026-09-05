@@ -5,6 +5,37 @@ import XCTest
 
 final class VisualRenderingTests: XCTestCase {
     @MainActor
+    func testNumericGridKeepsReadableHeightWhenPopoverFitsContent() throws {
+        let suiteName = "MenuBarStatsGridLayoutTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = AppPreferences(defaults: defaults)
+        preferences.coreScope = .all
+
+        for (coreCount, expectedHeight) in [(2, 38.0), (3, 84.0), (10, 222.0), (18, 244.0), (128, 244.0)] {
+            let cores = (0..<coreCount).map { CPUCoreReading(id: $0, usage: 0.25) }
+            let monitor = CPUMonitor(snapshot: CPUSnapshot(
+                cores: cores,
+                overallUsage: 0.25,
+                timestamp: Date(timeIntervalSince1970: 0)
+            ))
+            preferences.visualization = .bars
+            let bars = NSHostingController(rootView: CPUMenuView(monitor: monitor, preferences: preferences))
+                .sizeThatFits(in: NSSize(width: 340, height: 0))
+            preferences.visualization = .numbers
+            let numbers = NSHostingController(rootView: CPUMenuView(monitor: monitor, preferences: preferences))
+                .sizeThatFits(in: NSSize(width: 340, height: 0))
+
+            XCTAssertEqual(
+                numbers.height - bars.height,
+                expectedHeight - 150,
+                accuracy: 1,
+                "The grid must reserve a readable viewport for \(coreCount) cores."
+            )
+        }
+    }
+
+    @MainActor
     func testReferenceLayoutsRender() throws {
         let snapshot = CPUSnapshot(
             cores: [0.12, 0.28, 0.46, 0.81, 0.37, 0.64, 0.21, 0.93, 0.55, 0.34]

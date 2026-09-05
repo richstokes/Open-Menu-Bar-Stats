@@ -3,10 +3,19 @@ import SwiftUI
 struct CoreNumberGrid: View {
     let cores: [CPUCoreReading]
 
+    private let rowHeight: CGFloat = 38
+    private let rowSpacing: CGFloat = 8
     private let columns = [
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8)
     ]
+
+    private var gridHeight: CGFloat {
+        let rowCount = (cores.count + columns.count - 1) / columns.count
+        let contentHeight = CGFloat(rowCount) * rowHeight
+            + CGFloat(max(0, rowCount - 1)) * rowSpacing
+        return min(contentHeight, 244)
+    }
 
     var body: some View {
         if cores.count == 1, let core = cores.first {
@@ -22,7 +31,7 @@ struct CoreNumberGrid: View {
             .accessibilityElement(children: .combine)
         } else {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 8) {
+                LazyVGrid(columns: columns, spacing: rowSpacing) {
                     ForEach(cores) { core in
                         HStack {
                             Text("C\(core.id + 1)")
@@ -33,7 +42,7 @@ struct CoreNumberGrid: View {
                                 .monospacedDigit()
                         }
                         .padding(.horizontal, 10)
-                        .frame(height: 38)
+                        .frame(height: rowHeight)
                         .background(.quaternary.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(core.label)
@@ -41,7 +50,8 @@ struct CoreNumberGrid: View {
                     }
                 }
             }
-            .frame(maxHeight: 244)
+            // A maximum alone lets the popover collapse the scroll viewport.
+            .frame(height: gridHeight)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Numeric CPU usage by core")
         }
